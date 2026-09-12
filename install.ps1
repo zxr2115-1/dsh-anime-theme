@@ -249,7 +249,7 @@ Write-Host '验证：界面右下角应出现「二次元壁纸 / 换一张 / �
 Write-Host '卸载：运行 uninstall.ps1' -ForegroundColor Yellow
 Write-Host ''
 Write-Host '一键安装链接（发给别人 / 贴到网页）：' -ForegroundColor White
-Write-Host '  dsh://plugin/install?id=dsh-anime-theme&version=1.4.0&repo=zxr2115-1/dsh-anime-theme' -ForegroundColor DarkGray
+Write-Host '  dsh://plugin/install?id=dsh-anime-theme&version=1.4.1&repo=zxr2115-1/dsh-anime-theme' -ForegroundColor DarkGray
 Write-Host ''
 
 if (-not $env:DSH_NO_PAUSE) {

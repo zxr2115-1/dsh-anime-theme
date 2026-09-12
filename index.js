@@ -17,7 +17,7 @@ import { Readable } from "node:stream";
 export const name = "dsh-anime-theme";
 
 /** 与 package.json 保持一致的版本号（健康检查用）。 */
-const PLUGIN_VERSION = "1.4.0";
+const PLUGIN_VERSION = "1.4.1";
 
 /** 无必需服务：webServer 走可选用注入，缺失时不阻塞插件加载。 */
 export const inject = [];

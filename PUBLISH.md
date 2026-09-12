@@ -8,7 +8,7 @@
 ## 0. 最快路径
 
 ```bash
-node scripts/package.mjs                      # 打出 dist/dsh-anime-theme-1.4.0.zip
+node scripts/package.mjs                      # 打出 dist/dsh-anime-theme-1.4.1.zip
 # 打开 https://deepseek.stream/upload → 上传这个 zip
 ```
 
@@ -49,7 +49,7 @@ dsh-anime-theme/
 |------|-----------|
 | `id` | `dsh-anime-theme` |
 | `name` | `dsh-anime-theme` |
-| `version` | `1.4.0` |
+| `version` | `1.4.1` |
 | `description` | 一句话说明 |
 | `author` | `zxr2115-1` |
 | `platform` | `all`（可选 `all` / `desktop-exe` / `linux` / `web`） |
@@ -133,7 +133,7 @@ Get-Content $env:TEMP\dsh-check\dsh-anime-theme\plugin.json
 本插件的实际链接（各参数已 URL 编码）：
 
 ```
-dsh://plugin/install?id=dsh-anime-theme&name=%E4%BA%8C%E6%AC%A1%E5%85%83%E5%A3%81%E7%BA%B8%E4%B8%BB%E9%A2%98&version=1.4.0&repo=zxr2115-1/dsh-anime-theme&permissions=%E7%BD%91%E7%BB%9C%E8%AE%BF%E9%97%AE%2C%E6%9C%AC%E5%9C%B0%E5%AD%98%E5%82%A8
+dsh://plugin/install?id=dsh-anime-theme&name=%E4%BA%8C%E6%AC%A1%E5%85%83%E5%A3%81%E7%BA%B8%E4%B8%BB%E9%A2%98&version=1.4.1&repo=zxr2115-1/dsh-anime-theme&permissions=%E7%BD%91%E7%BB%9C%E8%AE%BF%E9%97%AE%2C%E6%9C%AC%E5%9C%B0%E5%AD%98%E5%82%A8
 ```
 
 协议格式：`dsh://plugin/install?id=&name=&version=&repo=&permissions=&downloadUrl=`。
@@ -177,7 +177,7 @@ setTimeout(() => document.body.removeChild(iframe), 2000);
 如果还想支持 `dsh plugin --profile web add dsh-anime-theme` 这种管路：
 
 ```bash
-git init && git add . && git commit -m "feat: 二次元壁纸主题 v1.4.0"
+git init && git add . && git commit -m "feat: 二次元壁纸主题 v1.4.1"
 git branch -M main
 git remote add origin https://github.com/zxr2115-1/dsh-anime-theme.git
 git push -u origin main

@@ -1,13 +1,11 @@
 {
   "name": "dsh-anime-theme",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "DeepSeek Harness 二次元壁纸主题插件：按需直取随机二次元图片作为背景，四档铺满方式、边缘羽化、毛玻璃适配与可拖动控制坞，原生适配深浅色主题。",
   "type": "module",
   "main": "./index.js",
   "license": "MIT",
-  "author": {
-    "name": "zxr2115-1"
-  },
+  "author": "zxr2115-1",
   "homepage": "https://github.com/zxr2115-1/dsh-anime-theme#readme",
   "repository": {
     "type": "git",
@@ -51,7 +49,7 @@
     "id": "dsh-anime-theme",
     "name": "二次元壁纸主题",
     "displayName": "二次元壁纸主题",
-    "version": "1.4.0",
+    "version": "1.4.1",
     "repo": "zxr2115-1/dsh-anime-theme",
     "permissions": "网络访问, 本地文件读写, 客户端样式注入",
     "bundle": {

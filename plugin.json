@@ -1,7 +1,7 @@
 {
   "id": "dsh-anime-theme",
   "name": "dsh-anime-theme",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "按需直取随机二次元图片作为 DSH 背景：四档铺满方式、边缘羽化、深色模式自动加深、可拖动控制坞。图源 cnmiw.com (MirlKoi API)，无需账号与 Token。",
   "author": "zxr2115-1",
   "platform": "all",
