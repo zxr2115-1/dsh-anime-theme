@@ -1,10 +1,17 @@
 # 二次元壁纸主题 · dsh-anime-theme
 
 给 **DeepSeek Harness**（Web 版 / DSH Desktop）换上一张随机二次元壁纸的主题插件。
-图片来源与「麦麦!来点二次元图片!」插件同源：**cnmiw.com（MirlKoi API）**，按需直取、不预爬、不缓存、无需账号与 Token。
 
-> 与麦麦插件的区别：麦麦是 QQ 机器人发图；本插件把同一图源用在 **DSH 界面壁纸上**，
-> 并叠加 token 级半透明面板，做出「毛玻璃 + 全屏壁纸」的视觉效果。
+点一下「换一张」，它就从图源取一张随机图铺成整屏背景，并处理好几件容易做丑的事：
+**整图完整可见**（不裁掉大半张脸）、留白处用同一张图的模糊放大版晕染（不出现白块黑块）、
+正片边缘羽化（消除硬缝）、深浅色主题自动适配。右下角常驻一个可拖动的控制坞，随时换图、切分类、调暗幕。
+
+**不需要 Pixiv 账号，不需要 Token，不预爬不缓存** —— 每次触发按需直取。
+
+![效果预览](./assets/preview.svg)
+
+> 图源是 cnmiw.com（MirlKoi API）的公开随机图接口。本插件只转发它返回的图片地址，
+> 不下载、不留存、不修改图片。
 
 ---
 
@@ -13,25 +20,30 @@
 | 功能 | 说明 |
 |------|------|
 | 🖼️ 随机壁纸 | 每次「换一张」直连 API 取随机图，不预爬不缓存 |
-| 🔞 色图 / 无色图 | 两套独立分类：无色图走 `sortSfw`、色图走 `sortNsfw`，**下拉框跟随模式切换，不会串台**（默认关闭色图） |
-| 🚧 混池拦截 | `random` / `CDNrandom` 是上游的「全站随机」，会混进色图；无色图模式下宿主要么降级到 `CDNcat` 并在控制坞如实提示，绝不照单全收 |
-| 🧩 接管内置壁纸层 | 直接写入 `deepseek-ai-cordis`(dsh-skin) 的 `[data-dsh-theme-bg]` 层，不另起一套 |
-| 🎛️ 悬浮控制坞 | 右下角常驻胶囊：换一张 / 开关 / 设置。**按住可拖动**，位置持久化；空闲时半透明（0.45），鼠标靠近或展开设置恢复实底，不挡状态栏读数 |
-| 🌗 暗幕 / 亮幕 | 壁纸上加调节遮罩，保证任何图下文字都可读 |
-| 🎚️ 实时调节 | 暗幕强度、背景虚化实时可调，拖动即预览 |
 | 🖼️ 四档铺满方式 | **自适应（默认）**：整图可见 + 留白用同图模糊放大版晕染；`cover` 铺满居中裁切；`cover-top` 铺满但裁切焦点偏上（保住人脸）；`plain` 整图 + 纯色留白 |
 | 🪶 留白不泛白 | 铺底幕色刻意比正片轻（浅色 0.135 / 深色 0.5）并 `saturate(1.45)`，让两侧是「这张图自己的颜色晕出去」而不是一层白膜 |
 | ✂️ 边缘羽化 | 按图的实际渲染矩形算一条 `mask-image` 渐隐带（羽化宽度 = 图宽 ×0.22，24~160px），把正片与铺底之间的硬缝抹平 |
+| 🎯 裁切焦点可调 | 「铺满·偏上」档的裁切位置 0~100% 可调（0 = 顶部，100 = 底部），默认 25% 保住人脸 |
 | 🌓 幕色跟随主题 | `auto` 模式下深色主题用暗幕、浅色主题用亮幕，避免浅色模式被压黑 |
 | 🌚 深色模式加深 | 深色 UI 配亮壁纸时浅色字压不住，所以深色主题额外多压一档（`dim + 0.2`，可关），浅色主题原样不动 |
-| ♻️ 关闭即还原 | 关掉插件写空样式表，一条规则都不残留，原背景完整回归 |
-| 🔁 失败自动重试 | 三段都有兜底：上游取地址失败退避重试 3 次；拿到地址却**取不到图**（403 防盗链 / 404 / 超时）也会自动换下一张；全过程保留上一张壁纸不清空 |
+| 🌗 暗幕 / 亮幕 | 壁纸上加可调遮罩，保证任何图下文字都可读 |
+| 🎚️ 实时调节 | 暗幕强度、留白虚化实时可调，拖动即预览 |
+| 🎛️ 悬浮控制坞 | 右下角常驻胶囊：换一张 / 开关 / 设置。**按住可拖动**，位置持久化；空闲时半透明（0.45），鼠标靠近或展开设置恢复实底，不挡状态栏读数 |
 | ⚡ 预加载后上屏 | 先等图片真正解码出来（读到自然尺寸）再换背景，不会先闪一下空背景 |
+| 🔁 失败自动重试 | 三段都有兜底：上游取地址失败退避重试 3 次；拿到地址却**取不到图**（403 防盗链 / 404 / 超时）也会自动换下一张；全过程保留上一张壁纸不清空 |
 | ⏱️ 自动换图 | 可设每 5 / 15 / 30 / 60 分钟自动换一张，改完立即重新排程 |
-| 🎯 裁切焦点可调 | 「铺满·偏上」档的裁切位置 0~100% 可调（0 = 顶部，100 = 底部），默认 25% 保住人脸 |
-| 🔁 近期去重 | 宿主侧记住最近 50 张，命中自动换一张 |
+| ♻️ 关闭即还原 | 关掉插件写空样式表 + 移除自建层，一条规则都不残留，原背景完整回归 |
+| 🧩 自建壁纸层 | 挂在 `<html>` 之下（不是 body 里），避开「祖先 transform 抢走 `position:fixed` 包含块」导致图被放大的坑；同时把内置主题插件 dsh-skin 那层 `display:none` 让位 |
 | 🛡️ 零 CORS 依赖 | 宿主半体代理上游 API，浏览器端不再受 `api.cnmiw.com` 缺 CORS 头影响 |
 | 🖼️ 防盗链中继 | 直连链路（sinaimg.cn）自动补 `Referer: https://weibo.com/`，并做域名白名单 |
+
+**图源相关（可选能力，默认关闭）**
+
+| 功能 | 说明 |
+|------|------|
+| 🔞 色图 / 无色图 | 两套独立分类：无色图走 `sortSfw`、色图走 `sortNsfw`，**下拉框跟随模式切换，不会串台**。默认是**无色图**，色图需手动开启 |
+| 🚧 混池拦截 | `random` / `CDNrandom` 是上游的「全站随机」，会混进色图；无色图模式下宿主会降级到 `CDNcat` 并在控制坞如实提示，绝不照单全收 |
+| 🔁 近期去重 | 宿主侧记住最近 50 张，命中自动换一张 |
 
 ---
 
@@ -201,9 +213,9 @@ profile 目录名：Web 版是 `web`，DSH Desktop 是 `desktop`（部分版本�
 8. **幂等安装 + 事务备份**：重复运行不会重复挂载，改动前一律时间戳备份
 9. **闭环自检**：`scripts/check-install.js` 真实模拟模块解析并校验软链、`dsh.bundle`、`exports["./client"]`
 
-### 渲染策略（v1.1.0 起改为「接管」而非「自建」）
+### 渲染策略（v1.4.0 · 自建层挂在 `<html>` 之下）
 
-本机这个 DSH 构建里，**全局背景壁纸本来就由内置主题插件 `deepseek-ai-cordis`（dsh-skin）负责渲染**：
+先说清一个背景：`deepseek-ai-cordis`（市场里的「deep桌面主题插件」）**自己就有一层全屏背景**：
 
 ```
 <div class="dt-bg dt-fade" data-dsh-theme-bg="true">     ← position:fixed; inset:0; z-index:-1
@@ -213,51 +225,81 @@ profile 目录名：Web 版是 `web`，DSH Desktop 是 `desktop`（部分版本�
 </div>
 ```
 
-所以 v1.0 那套「自建 `#dsh-anime-theme-bg` + `z-index:-1`」是**错的方向** ——
-它挂在同一个 `z-index:-1` 上，被 `.dt-bg` 挡在后面，永远看不见。
+本插件的做法是：**把它整层 `display:none` 让位，自己另起一层**。
 
-v1.1.0 改为「接管 dsh-skin 的 `[data-dsh-theme-bg]` 层」，v1.2.0 进一步改成**三层绘制**：
+#### 为什么不能把自建层挂在 body 里
+
+`position: fixed` 的包含块会被祖先抢走 —— 只要任一祖先带 `transform` / `filter` /
+`will-change` / `contain` / `zoom`，fixed 就退化成 absolute，`inset: 0` 于是按**那个祖先的盒子**算。
+盒子比视口大时，`cover` 会再放大一轮、`contain` 也会溢出被裁，表现就是「图铺得比屏幕大、显示不全」。
+
+历史上 v1.0 / v1.1 两版都走过弯路：先是和 dsh-skin 抢同一个 `z-index:-1` 被压在后面完全看不见，
+改成挂在 body 里又撞上包含块被抢。现在的做法绕开了这两个坑。
+
+#### 现在的结构
+
+```
+document.documentElement
+├── #dsh-anime-theme-bg                                ← 本插件自建，<html> 的第一个子节点
+└── <body>
+    └── <div class="dt-bg" data-dsh-theme-bg="true">   ← 被 display:none 让位
+```
+
+1. **挂到 `<html>` 之下**：上面只剩 `<html>`，没有祖先能抢走包含块；
+2. **尺寸显式喂进去**：`window.innerWidth/innerHeight` 写进 CSS 变量 `--dsh-anime-theme-w/h`，
+   `resize` 时重算 —— 不再依赖「包含块 + `inset:0`」推算出来的盒子；
+3. **明暗标记镜像到 `<html>`**：自建层是 `body` 的**兄弟节点**，用不了
+   `body[data-ds-dark-theme]` 后代选择器，所以由 JS 把 `data-dsh-anime-dark` 同步到 `<html>` 上供 CSS 取用。
+
+#### 三层绘制
 
 ```css
-/* ① 元素自身：兜底色，随主题明暗 */
-[data-dsh-theme-bg="true"] { background-color: #f4f6fa; }   /* 深色主题下为 #0b0d12 */
+/* ① 元素自身：兜底色 + 显式视口尺寸 */
+#dsh-anime-theme-bg {
+  position: fixed; top: 0; left: 0;
+  width: var(--dsh-anime-theme-w, 100vw);
+  height: var(--dsh-anime-theme-h, 100vh);
+  z-index: -1; pointer-events: none; overflow: hidden;
+  background-color: #f4f6fa;              /* 深色主题下为 #0b0d12 */
+}
 
-/* ② ::before 同一张图 cover + 大半径虚化 + scale(1.15) —— 留白处的柔和晕染 */
-[data-dsh-theme-bg="true"]::before {
+/* ② ::before 同一张图 cover + 大半径虚化 —— 留白处的颜色晕染 */
+#dsh-anime-theme-bg::before {
   content: ""; position: absolute; inset: 0;
-  background: url(图) center/cover no-repeat;
-  filter: blur(40px) saturate(1.18);
+  background-image: linear-gradient(铺底幕色, 铺底幕色), url(图);
+  background-size: cover, cover;
+  filter: blur(40px) saturate(1.45);
   transform: scale(1.15);
 }
 
-/* ③ ::after 幕色渐变铺满 + 整图 contain —— 正片，完整不裁切 */
-[data-dsh-theme-bg="true"]::after {
+/* ③ ::after 幕色渐变铺满 + 正片；smart/plain 用 contain 保整图，cover 系直接铺满 */
+#dsh-anime-theme-bg::after {
   content: ""; position: absolute; inset: 0;
   background-image: linear-gradient(幕色, 幕色), url(图);
   background-size: cover, contain;        /* 逐层尺寸：幕色永远铺满，图保整张 */
   background-position: center, center;
   background-repeat: no-repeat, no-repeat;
+  mask-image: linear-gradient(to right, transparent …, #000 …, #000 …, transparent …);
 }
 ```
 
-这样既**不会出现大白/黑块**（留白被同一张图的模糊放大版接管），又**整张图完整可见**，
-同时 `::after` 的幕色让画面随主题明暗自动收敛；`::before` / `::after` 都绝对定位、
-按 DOM 顺序层叠，且被 `.dt-bg` 的 `overflow:hidden` 裁掉，不会溢出到应用界面之上。
+`::before` / `::after` 都是绝对定位、按 DOM 顺序层叠，
+且被本层自己的 `overflow: hidden` 裁掉，不会溢出到应用界面之上。
 
-其余要点：
+#### 其余要点
 
-1. 把它原有的 `> *` 子节点 `display:none` 让位；
-2. **不再覆写 `--dsw-alias-bg-*` token** —— 面板透明度归 dsh-skin 的
-   `themeAlpha` / `dialogAlpha` 管（它走 `ctx.theme.overrideTokens`），
-   再用 `!important` 去压会直接踩坏它的透明度滑杆；
-3. 关闭壁纸时 `buildCss()` 直接返回空串 —— 一条规则都不写，原背景完整回归；
-4. 只有在 `[data-dsh-theme-bg]` 不存在时（纯净 Web 构建 / 没装 dsh-skin）才退回
-   自建壁纸层 + 自管 panel token 的兜底模式；控制坞会显示当前是「接管模式」还是「兜底模式」；
-5. 控制坞注册进官方预留的浮动层槽位 `shell.overlay`（`kind: "list"`，可加性席位），
+1. **不碰 `--dsw-alias-bg-*` token** —— 面板透明度归 dsh-skin 的 `themeAlpha` / `dialogAlpha`
+   管（它走 `ctx.theme.overrideTokens`），再用 `!important` 去压会直接踩坏它的透明度滑杆；
+   只有完全没装 dsh-skin 时才由本插件接管（`isolatePanels` 开关）；
+2. **关闭即还原**：`buildCss()` 返回空串 + 自建层移除，写在 dsh-skin 那层上的 `display:none` 一并消失，
+   原背景完整回归，一条规则都不残留；
+3. **边缘羽化**：`::after` 挂一条按图的实际渲染矩形算出来的 `mask-image` 渐隐带，
+   抹平正片与模糊铺底之间的硬缝（羽化宽度 = 图宽 ×0.22，钳在 24~160px）；
+4. 控制坞注册进官方预留的浮动层槽位 `shell.overlay`（`kind: "list"`，可加性席位），
    注册失败时回退 `conversation.input.dock`。
 
-> 副作用：接管模式下，「毛玻璃面板」一档不适用（面板透明度归 dsh-skin），
-> 所以该开关在接管模式下隐藏，控制坞底部会提示去「设置 → 主题」调。
+> 副作用：本插件开启期间，dsh-skin 自己的壁纸设置（内置主题 / 图片 / 视频）会被让位，
+> 点控制坞的「开 / 关」即恢复。面板透明度始终归「设置 → 主题」里的滑杆。
 
 ---
 
@@ -335,7 +377,7 @@ $env:PROBE_DARK='1'; node scripts/probe-css.mjs   # 跑深色分支
 |------|------|------|
 | 右下角没有控制坞 | 客户端 bundle 没加载 | 检查 `exports["./client"]` 与 `dsh.client.platform`；F12 看 `[dsh-anime-theme] client runtime error` |
 | 控制坞出现但壁纸不显示 | 面板仍不透明 / 图片没取到 | 看控制坞底部提示；确认宿主路由 `/dsh-anime-theme/api/health` 可访问 |
-| 提示「代理模式：直连」 | 宿主半体没起来（`webServer` 缺失） | 检查 profile `cordis.patch.yml` 是否挂载、`index.js` 是否有报错 |
+| 控制坞底部提示「宿主路由：不可用」 | 宿主半体没起来（`webServer` 缺失） | 检查 profile `cordis.patch.yml` 是否挂载、`index.js` 是否有报错；此时客户端会退回浏览器直连，但会被 CORS 挡住 |
 | 启动直接崩溃 `declares no dsh.bundle` | `package.json` 缺 `dsh.bundle.patch` | 补 `"dsh": { "bundle": { "patch": "./cordis.patch.yml" } }` |
 | `SyntaxError: Unexpected token` | JSON 带了 UTF-8 BOM | 用 `UTF8Encoding($false)` 重写该 JSON |
 | 图片 403 | 直连链路防盗链 | 换回 `CDNsetu` / `CDNcat`，或确认走的是宿主中继 |
@@ -372,4 +414,10 @@ Windows 下 `.ps1` 要带 BOM 而 `.json` 不能带等）都写在 **[PUBLISH.md
 
 ## 📄 License
 
-MIT。图源版权归原作者所有，本插件仅转发公开随机图接口返回的图片地址。
+MIT。
+
+图源版权归原作者所有，本插件仅转发公开随机图接口返回的图片地址，不在本地留存。
+
+> 设计参考：[麦麦 (MaiBot)](https://github.com/Mai-with-u) 生态的「来点二次元图片」插件
+> 把同一个图源用在 QQ 群聊里。本插件与之没有代码或依赖关系，只是选了同一个公开 API；
+> 两者的形态完全不同 —— 那边是发图机器人，这边是界面主题。
