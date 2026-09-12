@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-label="二次元壁纸主题 效果预览">
+  <title>二次元壁纸主题 · 效果预览</title>
+  <defs>
+    <linearGradient id="photo" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f0abfc"/>
+      <stop offset="0.45" stop-color="#a5b4fc"/>
+      <stop offset="1" stop-color="#67e8f9"/>
+    </linearGradient>
+    <linearGradient id="veil" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#080a10" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#080a10" stop-opacity="0.52"/>
+    </linearGradient>
+    <linearGradient id="fade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000"/>
+      <stop offset="0.28" stop-color="#fff"/>
+      <stop offset="0.72" stop-color="#fff"/>
+      <stop offset="1" stop-color="#000"/>
+    </linearGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="30"/></filter>
+    <mask id="feather" maskUnits="userSpaceOnUse" x="0" y="0" width="960" height="540">
+      <rect width="960" height="540" fill="url(#fade)"/>
+    </mask>
+  </defs>
+
+  <!-- 兜底色 -->
+  <rect width="960" height="540" fill="#0b0d12"/>
+
+  <!-- 留白处的模糊放大铺底：同一张图 cover + 大半径虚化 -->
+  <rect x="-60" y="-60" width="1080" height="660" fill="url(#photo)" filter="url(#blur)" opacity="0.95"/>
+
+  <!-- 正片：contain 保整图，两侧用渐隐蒙版羽化，避免硬缝 -->
+  <g mask="url(#feather)">
+    <rect width="960" height="540" fill="url(#photo)"/>
+  </g>
+
+  <!-- 幕色 -->
+  <rect width="960" height="540" fill="url(#veil)"/>
+
+  <!-- 侧栏（dsh-skin 的实底面板） -->
+  <rect width="196" height="540" fill="#14161c" opacity="0.94"/>
+  <rect x="20" y="26" width="30" height="30" rx="9" fill="#6d8dff" opacity="0.9"/>
+  <rect x="60" y="34" width="76" height="7" rx="3.5" fill="#ffffff" opacity="0.55"/>
+  <rect x="60" y="47" width="48" height="6" rx="3" fill="#ffffff" opacity="0.28"/>
+  <rect x="14" y="86" width="168" height="34" rx="10" fill="#ffffff" opacity="0.10"/>
+  <rect x="30" y="99" width="86" height="8" rx="4" fill="#ffffff" opacity="0.55"/>
+  <g opacity="0.34">
+    <rect x="30" y="146" width="96" height="7" rx="3.5" fill="#ffffff"/>
+    <rect x="30" y="186" width="70" height="7" rx="3.5" fill="#ffffff"/>
+    <rect x="30" y="226" width="110" height="7" rx="3.5" fill="#ffffff"/>
+    <rect x="30" y="266" width="82" height="7" rx="3.5" fill="#ffffff"/>
+    <rect x="30" y="306" width="120" height="7" rx="3.5" fill="#ffffff"/>
+  </g>
+  <rect x="14" y="492" width="168" height="30" rx="9" fill="#ffffff" opacity="0.08"/>
+
+  <!-- 对话区：正文是浅色字，dsh-skin 的 dialogAlpha 可以给它加底衬 -->
+  <g opacity="0.92">
+    <rect x="236" y="52" width="470" height="12" rx="6" fill="#ffffff" opacity="0.62"/>
+    <rect x="236" y="76" width="380" height="12" rx="6" fill="#ffffff" opacity="0.42"/>
+    <rect x="236" y="112" width="300" height="30" rx="9" fill="#ffffff" opacity="0.16"/>
+    <rect x="248" y="122" width="212" height="10" rx="5" fill="#ffffff" opacity="0.72"/>
+    <rect x="236" y="162" width="520" height="12" rx="6" fill="#ffffff" opacity="0.50"/>
+    <rect x="236" y="186" width="440" height="12" rx="6" fill="#ffffff" opacity="0.36"/>
+    <rect x="236" y="210" width="500" height="12" rx="6" fill="#ffffff" opacity="0.30"/>
+    <rect x="236" y="250" width="330" height="30" rx="9" fill="#ffffff" opacity="0.16"/>
+    <rect x="248" y="260" width="240" height="10" rx="5" fill="#ffffff" opacity="0.72"/>
+  </g>
+
+  <!-- 右下角控制坞：可拖动、空闲半透明 -->
+  <g opacity="0.96">
+    <rect x="700" y="466" width="242" height="42" rx="21" fill="#14161c" opacity="0.86"/>
+    <rect x="700" y="466" width="242" height="42" rx="21" fill="none" stroke="#ffffff" stroke-opacity="0.16"/>
+    <circle cx="724" cy="487" r="4.5" fill="#33d17a"/>
+    <text x="740" y="492" font-family="system-ui, -apple-system, 'Microsoft YaHei', sans-serif" font-size="13" fill="#f2f4f8">二次元壁纸</text>
+    <rect x="820" y="475" width="52" height="24" rx="8" fill="#ffffff" opacity="0.12"/>
+    <text x="846" y="492" text-anchor="middle" font-family="system-ui, -apple-system, 'Microsoft YaHei', sans-serif" font-size="12" fill="#f2f4f8" opacity="0.9">换一张</text>
+    <rect x="878" y="475" width="26" height="24" rx="8" fill="#ffffff" opacity="0.12"/>
+    <text x="891" y="492" text-anchor="middle" font-family="system-ui, -apple-system, 'Microsoft YaHei', sans-serif" font-size="12" fill="#f2f4f8" opacity="0.9">开</text>
+    <rect x="910" y="475" width="24" height="24" rx="8" fill="#ffffff" opacity="0.12"/>
+    <text x="922" y="492" text-anchor="middle" font-family="system-ui, -apple-system, 'Microsoft YaHei', sans-serif" font-size="11" fill="#f2f4f8" opacity="0.9">设</text>
+  </g>
+
+  <text x="28" y="524" font-family="system-ui, -apple-system, 'Microsoft YaHei', sans-serif" font-size="12" fill="#ffffff" opacity="0.40">图源 cnmiw.com (MirlKoi API) · 自适应铺满 + 边缘羽化</text>
+</svg>

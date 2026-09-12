@@ -1,0 +1,46 @@
+{
+  "id": "dsh-anime-theme",
+  "name": "dsh-anime-theme",
+  "version": "1.4.0",
+  "description": "按需直取随机二次元图片作为 DSH 背景：四档铺满方式、边缘羽化、深色模式自动加深、可拖动控制坞。图源 cnmiw.com (MirlKoi API)，无需账号与 Token。",
+  "author": "zxr2115-1",
+  "platform": "all",
+  "harnessVersion": ">=0.1.0",
+  "entry": "index.js",
+  "permissions": [
+    "network",
+    "storage",
+    "ui-injection"
+  ],
+  "tags": [
+    "deepseek",
+    "deepseek-harness",
+    "dsh-plugin",
+    "theme",
+    "wallpaper",
+    "anime",
+    "background"
+  ],
+  "category": "theme",
+  "displayName": "二次元壁纸主题",
+  "main": "./index.js",
+  "client": "./client.js",
+  "browser": "./client.js",
+  "permissionsDisplay": [
+    "网络访问",
+    "本地存储",
+    "客户端样式注入"
+  ],
+  "icon": "./assets/icon.png",
+  "contributes": {
+    "wallpaper": true,
+    "fitModes": [
+      "smart",
+      "cover",
+      "cover-top",
+      "plain"
+    ],
+    "imageSource": "cnmiw.com (MirlKoi API)",
+    "dock": true
+  }
+}

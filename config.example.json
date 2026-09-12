@@ -1,0 +1,14 @@
+{
+  "enabled": true,
+  "allowNsfw": false,
+  "sortSfw": "CDNcat",
+  "sortNsfw": "CDNsetu",
+  "autoRefreshMinutes": 0,
+  "recentLimit": 50,
+  "recent": [],
+  "opacity": 1,
+  "dim": 0.42,
+  "blur": 0,
+  "glass": true,
+  "veil": "dark"
+}

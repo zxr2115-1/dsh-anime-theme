@@ -1,0 +1,12 @@
+# 依赖与产物
+node_modules/
+dist/
+
+# 编辑器与系统
+.DS_Store
+Thumbs.db
+*.log
+
+# 打包/安装产生的临时件
+*.bak.*
+.stage/
