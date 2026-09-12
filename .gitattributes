@@ -1,0 +1,31 @@
+# 换行符策略 —— 不写这个，Windows 上的 core.autocrlf 会把 shell 脚本改成 CRLF，
+# Linux / macOS 上执行时报 "bad interpreter: /usr/bin/env bash^M"
+* text=auto
+
+# shell 脚本必须保持 LF，否则 shebang 会带上 ^M
+*.sh    text eol=lf
+*.bash  text eol=lf
+
+# Windows 脚本保持 CRLF（.ps1 另需 UTF-8 BOM，那由文件内容决定，gitattributes 不碰）
+*.ps1   text eol=crlf
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+
+# 源码与配置统一 LF
+*.js    text eol=lf
+*.mjs   text eol=lf
+*.json  text eol=lf
+*.yml   text eol=lf
+*.md    text eol=lf
+*.svg   text eol=lf
+
+# 二进制不要做任何转换
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.ico   binary
+*.zip   binary
+*.woff2 binary
+
+# GitHub 语言统计：client.js/index.js 是手写发行产物，别让它们淹没仓库统计
+client.js linguist-generated
