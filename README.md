@@ -8,7 +8,7 @@
 
 **不需要 Pixiv 账号，不需要 Token，不预爬不缓存** —— 每次触发按需直取。
 
-![效果预览](https://cdn.jsdelivr.net/gh/zxr2115-1/dsh-anime-theme@main/assets/preview.png)
+![效果预览](https://cdn.jsdelivr.net/gh/zxr2115-1/dsh-anime-theme@main/assets/preview.jpg)
 
 > 图源是 cnmiw.com（MirlKoi API）的公开随机图接口。本插件只转发它返回的图片地址，
 > 不下载、不留存、不修改图片。
