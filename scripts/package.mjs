@@ -9,9 +9,9 @@
  *
  * 用法：node scripts/package.mjs
  */
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
-import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
+import { makeZip } from "./lib/zip.mjs";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -41,11 +41,10 @@ const INCLUDE = [
   "assets",
 ];
 /** 打包工具自己不进包（npm 走 files 仍会带，市场 zip 不带） */
-const EXCLUDE_FILES = new Set(["scripts/package.mjs"]);
+const EXCLUDE_FILES = new Set(["scripts/package.mjs", "scripts/lib/zip.mjs"]);
 const EXCLUDE_DIRS = new Set(["dist", ".git", "node_modules"]);
 
 const DIST = join(ROOT, "dist");
-const STAGE = join(DIST, ".stage", NAME);
 const OUT = join(DIST, NAME + "-" + VERSION + ".zip");
 
 // ---------- 1. 校验必备文件 ----------
@@ -74,35 +73,43 @@ if (manifest.version !== VERSION) {
   process.exit(1);
 }
 
-// ---------- 3. 暂存 ----------
-rmSync(join(DIST, ".stage"), { recursive: true, force: true });
-mkdirSync(STAGE, { recursive: true });
-for (const entry of INCLUDE) {
-  cpSync(join(ROOT, entry), join(STAGE, entry), {
-    recursive: true,
-    filter: (src) => {
-      const rel = relative(ROOT, src).split("\\").join("/");
-      if (EXCLUDE_FILES.has(rel)) return false;
-      return !EXCLUDE_DIRS.has(src.split(/[\\/]/).pop());
-    },
-  });
+// ---------- 3. 收集条目（条目名一律正斜杠，跨平台可解） ----------
+/** 递归收集一个路径下的所有文件，返回 zip 内的相对路径与磁盘路径。 */
+function collect(absPath, zipPrefix, acc) {
+  const st = statSync(absPath);
+  if (st.isDirectory()) {
+    acc.push({ name: zipPrefix + "/", dir: true });
+    for (const entry of readdirSync(absPath, { withFileTypes: true })) {
+      const child = join(absPath, entry.name);
+      const rel = relative(ROOT, child).split("\\").join("/");
+      if (EXCLUDE_FILES.has(rel)) continue;
+      if (entry.isDirectory() && EXCLUDE_DIRS.has(entry.name)) continue;
+      collect(child, zipPrefix + "/" + entry.name, acc);
+    }
+    return acc;
+  }
+  acc.push({ name: zipPrefix, data: readFileSync(absPath) });
+  return acc;
 }
 
-// ---------- 4. 压缩 ----------
-if (existsSync(OUT)) rmSync(OUT, { force: true });
-mkdirSync(DIST, { recursive: true });
-const isWindows = process.platform === "win32";
-if (isWindows) {
-  execFileSync(
-    "powershell.exe",
-    ["-NoProfile", "-NonInteractive", "-Command",
-      "Compress-Archive -Path '" + STAGE + "' -DestinationPath '" + OUT + "' -Force"],
-    { stdio: "inherit" },
-  );
-} else {
-  execFileSync("zip", ["-r", "-q", OUT, NAME], { cwd: join(DIST, ".stage"), stdio: "inherit" });
+const collected = [];
+for (const entry of INCLUDE) {
+  collected.push(...collect(join(ROOT, entry), NAME + "/" + entry.split("\\").join("/"), []));
 }
-rmSync(join(DIST, ".stage"), { recursive: true, force: true });
+
+// 剪掉空目录条目（例如整个目录下的文件都被 EXCLUDE_FILES 排掉时）
+const dirsWithFiles = new Set();
+for (const e of collected) {
+  if (e.dir) continue;
+  const parts = e.name.split("/");
+  for (let i = 1; i < parts.length; i++) dirsWithFiles.add(parts.slice(0, i).join("/") + "/");
+}
+const entries = collected.filter((e) => !e.dir || dirsWithFiles.has(e.name));
+
+// ---------- 4. 压缩（自写 ZIP 写入器，不依赖外部命令） ----------
+mkdirSync(DIST, { recursive: true });
+if (existsSync(OUT)) rmSync(OUT, { force: true });
+writeFileSync(OUT, makeZip(entries));
 
 // ---------- 5. 列包内容 ----------
 function walk(dir, base) {
@@ -114,31 +121,9 @@ function walk(dir, base) {
   }
   return rows;
 }
-const staged = (() => {
-  // 压缩后 stage 已删，这里直接按 INCLUDE 递归列源文件
-  const rows = [];
-  for (const entry of INCLUDE) {
-    const full = join(ROOT, entry);
-    if (statSync(full).isDirectory()) {
-      const sub = (function rec(d) {
-        const out = [];
-        for (const e of readdirSync(d, { withFileTypes: true })) {
-          const f = join(d, e.name);
-          if (e.isDirectory()) out.push(...rec(f));
-          else {
-            const rel = relative(ROOT, f).split("\\").join("/");
-            if (!EXCLUDE_FILES.has(rel)) out.push(rel + "  " + statSync(f).size);
-          }
-        }
-        return out;
-      })(full);
-      rows.push(...sub);
-    } else {
-      rows.push(entry + "  " + statSync(full).size);
-    }
-  }
-  return rows;
-})();
+const staged = entries
+  .filter((e) => !e.dir)
+  .map((e) => e.name.replace(NAME + "/", "") + "  " + e.data.length);
 
 console.log("");
 console.log("打包完成：" + relative(ROOT, OUT));
