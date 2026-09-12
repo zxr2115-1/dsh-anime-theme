@@ -85,8 +85,9 @@ dsh-anime-theme/
 本插件**没有构建步骤** —— `client.js` 是手写的浏览器 bundle，直接发布，不需要 `npm run build`。
 
 ```bash
-# ① 语法
+# ① 语法 + 编码/换行符（.ps1 需 BOM、.json 不能带 BOM、.sh 需 LF、版本号五处一致）
 node --check index.js && node --check client.js
+node scripts/check-encoding.mjs
 
 # ② 离线抓样式 / 渲染控制坞，核对四档铺满方式、下拉框、拖动行为
 node scripts/probe-css.mjs
@@ -127,18 +128,47 @@ Get-Content $env:TEMP\dsh-check\dsh-anime-theme\plugin.json
 
 ---
 
-## 4. `dsh://` 一键安装链接（可选）
+## 4. `dsh://` 一键安装联动协议
 
-桌面端（EXE）内置 `dsh://` 协议，放进 README 或项目主页即可一键安装：
+本插件的实际链接（各参数已 URL 编码）：
 
-```html
-<a href="dsh://plugin/install?id=dsh-anime-theme&amp;name=%E4%BA%8C%E6%AC%A1%E5%85%83%E5%A3%81%E7%BA%B8%E4%B8%BB%E9%A2%98&amp;version=1.4.0&amp;repo=zxr2115-1/dsh-anime-theme">
-  一键安装到 DeepSeek Harness
-</a>
+```
+dsh://plugin/install?id=dsh-anime-theme&name=%E4%BA%8C%E6%AC%A1%E5%85%83%E5%A3%81%E7%BA%B8%E4%B8%BB%E9%A2%98&version=1.4.0&repo=zxr2115-1/dsh-anime-theme&permissions=%E7%BD%91%E7%BB%9C%E8%AE%BF%E9%97%AE%2C%E6%9C%AC%E5%9C%B0%E5%AD%98%E5%82%A8
 ```
 
-协议格式：`dsh://plugin/install?id=&name=&version=&repo=&permissions=&downloadUrl=`，
-参数需 URL 编码。桌面端会弹权限确认，解压到 `~/.dsh/plugins/` 后热加载。
+协议格式：`dsh://plugin/install?id=&name=&version=&repo=&permissions=&downloadUrl=`。
+桌面端收到后会弹权限确认面板，确认才拉包并解压到 `~/.dsh/plugins/` 热加载。
+
+### ⚠ GitHub 会过滤自定义协议
+
+README 里写 `<a href="dsh://...">` **点不动** —— GitHub 的 HTML 消毒器只放行
+http/https/mailto 等白名单协议，`dsh:` 会被剥成纯文本。
+
+所以本插件提供了 [`test-uri-install.html`](./test-uri-install.html)：一个自包含的调试页，
+里有可点按钮、参数解析预览、排查清单和可复制的前端代码。本地打开即可。
+插件市场 deepseek.stream 自己的详情页不受此限制，那里的按钮可以直接点。
+
+### Windows 上协议没注册？
+
+桌面端（EXE）**通常自己会注册** `dsh://`。万一没有，跑一次 `install.ps1` 兜底写入
+`HKCU\Software\Classes\dsh`（它会自动探测 EXE 路径，不硬编码）。验证：
+
+```powershell
+reg query "HKCU\Software\Classes\dsh\shell\open\command"
+```
+
+### 前端拉起方式
+
+用隐藏 iframe，不跳转也不会被弹窗拦截：
+
+```js
+const params = new URLSearchParams({ id, name, version, repo, permissions });
+const iframe = document.createElement('iframe');
+iframe.style.display = 'none';
+iframe.src = 'dsh://plugin/install?' + params.toString();
+document.body.appendChild(iframe);
+setTimeout(() => document.body.removeChild(iframe), 2000);
+```
 
 ---
 
@@ -231,7 +261,16 @@ cleanLegacyState: healed plugin exports and dsh.client for dsh-anime-theme
 安装脚本成功 ≠ 宿主能起来。软链失效、`exports` 写错、profile 漏挂，
 都只有 `check-install.js` 这种「真实模拟模块解析」的检查才抓得住。
 
-### ⑤ Windows 上 `.ps1` 必须存成 UTF-8 **带** BOM
+### ⑤ 编码/换行符是最容易被无声破坏的东西（已做成自动检查）
+
+`scripts/check-encoding.mjs` 会逐条校验：`.ps1` 必须带 UTF-8 BOM、`.json`/js/mjs/sh 不能带 BOM、
+`.sh` 必须是 LF、版本号五处一致。`scripts/package.mjs` 会先跑它，不过就拒绝打包。
+
+这条检查是被反复咬出来的 —— 包括编写本插件的过程中，一次普通的文本编辑就把
+`install.ps1` 的 BOM 抹掉了，PowerShell 5.1 立刻按 GBK 读、中文全乱、报 6 处语法错误。
+编码这种东西你看代码是看不出来的，只能靠机器查。
+
+### ⑥ 细节：Windows 上 `.ps1` 必须存成 UTF-8 **带** BOM
 
 PowerShell 5.1 默认按 ANSI/GBK 读 `.ps1`，无 BOM 的中文注释和路径会变乱码，
 脚本直接找不到文件。反过来，所有 `.json` 产物必须**无** BOM，否则 Node 的
