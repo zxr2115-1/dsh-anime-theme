@@ -49,14 +49,50 @@
 
 ## 📦 安装
 
-### 方法一：一键脚本（推荐）
+### 方法一：桌面端一键安装（最省事）
+
+装了 **DeepSeek Harness 桌面端**的话，把下面这行粘进浏览器地址栏，客户端会被唤起并弹出安装确认：
+
+```
+dsh://plugin/install?id=dsh-anime-theme&name=%E4%BA%8C%E6%AC%A1%E5%85%83%E5%A3%81%E7%BA%B8%E4%B8%BB%E9%A2%98&version=1.4.0&repo=zxr2115-1/dsh-anime-theme&permissions=%E7%BD%91%E7%BB%9C%E8%AE%BF%E9%97%AE%2C%E6%9C%AC%E5%9C%B0%E5%AD%98%E5%82%A8
+```
+
+> ⚠ **GitHub 会过滤 `dsh:` 这类自定义协议的链接**，所以在 README 里做的按钮点不动 —— 上面是给你复制的。
+> 想要能点的按钮，本地打开 [`test-uri-install.html`](./test-uri-install.html)（自带按钮、参数预览和排查清单）。
+> 插件市场 deepseek.stream 的详情页不受此限制，那里的「⚡ 一键安装」可以直接点。
+
+协议格式（`dsh://` 由桌面端注册，各参数需 `encodeURIComponent`）：
+
+```
+dsh://plugin/install?id={id}&name={name}&version={version}&repo={repo}&permissions={permissions}&downloadUrl={downloadUrl}
+```
+
+前端拉起用隐藏 iframe 即可，不跳转、也不会被弹窗拦截：
+
+```js
+const params = new URLSearchParams({ id, name, version, repo, permissions });
+const iframe = document.createElement('iframe');
+iframe.style.display = 'none';
+iframe.src = 'dsh://plugin/install?' + params.toString();
+document.body.appendChild(iframe);
+setTimeout(() => document.body.removeChild(iframe), 2000);
+```
+
+Windows 上如果协议没注册，跑一次 `install.ps1` 即可（它会兜底写入
+`HKCU\Software\Classes\dsh`）。验证：
+
+```powershell
+reg query "HKCU\Software\Classes\dsh\shell\open\command"
+```
+
+### 方法二：一键脚本（推荐）
 
 1. 右键 `install.ps1` → **使用 PowerShell 运行**
    （被系统拦截时双击 `install.bat`，或在 PowerShell 里执行 `.\install.ps1`）
 2. 完全退出并重启 DeepSeek Harness（Web 版刷新页面 / 桌面版重开应用）
 3. 新建会话即可看到右下角控制坞
 
-### 方法二：手动安装
+### 方法三：手动安装
 
 ```powershell
 # 1) 复制到插件目录

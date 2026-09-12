@@ -211,12 +211,45 @@ if ($node) {
     Write-Warn '未检测到 node，跳过自检'
 }
 
+# ---------- [7.5] dsh:// 桌面端一键联动协议 ----------
+# 桌面端（EXE）通常自己会注册这个协议；这里只是兜底：
+# 万一没注册，用户点市场页面上的「一键安装」按钮就没反应。
+Write-Step '检查 dsh:// 一键联动协议'
+
+try {
+    $dshExePath = Join-Path $env:LOCALAPPDATA 'Programs\DeepSeek-Harness\DeepSeek Harness.exe'
+    if (Test-Path $dshExePath) {
+        $regPath = 'HKCU:\Software\Classes\dsh'
+        if (-not (Test-Path $regPath)) {
+            New-Item -Path $regPath -Force | Out-Null
+            Set-ItemProperty -Path $regPath -Name '(default)' -Value 'DeepSeek Harness Protocol'
+            Set-ItemProperty -Path $regPath -Name 'URL Protocol' -Value ''
+            $iconPath = Join-Path $regPath 'DefaultIcon'
+            New-Item -Path $iconPath -Force | Out-Null
+            Set-ItemProperty -Path $iconPath -Name '(default)' -Value ('"' + $dshExePath + '",0')
+            $cmdPath = Join-Path $regPath 'shell\open\command'
+            New-Item -Path $cmdPath -Force | Out-Null
+            Set-ItemProperty -Path $cmdPath -Name '(default)' -Value ('"' + $dshExePath + '" "%1"')
+            Write-Ok '已注册 dsh:// 协议（浏览器可唤起客户端一键安装）'
+        } else {
+            Write-Ok 'dsh:// 协议已注册，跳过'
+        }
+    } else {
+        Write-Warn "未检测到桌面端 EXE（$dshExePath）——多数情况下桌面端会自己注册，可忽略"
+    }
+} catch {
+    Write-Warn "协议注册失败（可忽略，不影响插件本身）：$($_.Exception.Message)"
+}
+
 Write-Host ''
 Write-Host '安装完成。' -ForegroundColor Green
 Write-Host '最后一步：完全退出并重启 DeepSeek Harness（Web 版刷新页面 / 桌面版重新打开应用），新建会话即可生效。' -ForegroundColor White
 Write-Host ''
 Write-Host '验证：界面右下角应出现「二次元壁纸 / 换一张 / 开 关 设置」控制坞，壁纸自动加载。' -ForegroundColor Yellow
 Write-Host '卸载：运行 uninstall.ps1' -ForegroundColor Yellow
+Write-Host ''
+Write-Host '一键安装链接（发给别人 / 贴到网页）：' -ForegroundColor White
+Write-Host '  dsh://plugin/install?id=dsh-anime-theme&version=1.4.0&repo=zxr2115-1/dsh-anime-theme' -ForegroundColor DarkGray
 Write-Host ''
 
 if (-not $env:DSH_NO_PAUSE) {

@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>二次元壁纸主题 · dsh:// 一键安装调试</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 40px 20px; min-height: 100vh;
+    background: radial-gradient(1200px 600px at 50% -10%, #1e2440 0%, #0b0d12 60%);
+    color: #f2f4f8; font-family: system-ui, -apple-system, "Microsoft YaHei", "PingFang SC", sans-serif;
+    line-height: 1.7;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  .sub { color: #9aa3b2; font-size: 13px; margin-bottom: 28px; }
+  .card {
+    background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.10);
+    border-radius: 16px; padding: 20px; margin-bottom: 18px;
+  }
+  .badge {
+    display: inline-flex; align-items: center; gap: 10px;
+    text-decoration: none; border-radius: 10px; overflow: hidden;
+    font-size: 14px; font-weight: 600; color: #fff;
+    box-shadow: 0 8px 24px rgba(14,165,233,.28);
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .badge:hover { transform: translateY(-1px); box-shadow: 0 12px 30px rgba(14,165,233,.38); }
+  .badge .l { background: #0ea5e9; padding: 11px 16px; }
+  .badge .r { background: #1e2534; padding: 11px 16px; color: #cfe8ff; }
+  .url {
+    display: block; width: 100%; margin-top: 14px; padding: 12px 14px;
+    background: #06080d; border: 1px solid rgba(255,255,255,.12); border-radius: 10px;
+    color: #8fd6ff; font-family: ui-monospace, Consolas, monospace; font-size: 12px;
+    word-break: break-all; user-select: all;
+  }
+  button {
+    margin-top: 12px; padding: 9px 16px; border-radius: 9px; cursor: pointer;
+    border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.08);
+    color: #f2f4f8; font: inherit; font-size: 13px;
+  }
+  button:hover { background: rgba(255,255,255,.14); }
+  h2 { font-size: 14px; margin: 0 0 12px; color: #cfe0ff; }
+  pre {
+    margin: 0; padding: 14px; background: #06080d; border: 1px solid rgba(255,255,255,.10);
+    border-radius: 10px; overflow: auto; font-size: 12px; color: #b9c6d8;
+  }
+  .ok { color: #33d17a; } .warn { color: #e5b567; } .muted { color: #9aa3b2; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  td { padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.06); vertical-align: top; }
+  td:first-child { color: #8fd6ff; width: 120px; font-family: ui-monospace, Consolas, monospace; }
+  ol { padding-left: 20px; color: #c3cbd8; font-size: 13px; }
+  code { background: rgba(255,255,255,.08); padding: 1px 6px; border-radius: 5px; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>二次元壁纸主题 · dsh:// 一键安装</h1>
+  <div class="sub">DeepSeek Harness 桌面端联动协议调试页 · <span class="muted">本地打开即可，不依赖网络</span></div>
+
+  <div class="card">
+    <a class="badge" id="installBtn" href="#">
+      <span class="l">⚡ 一键安装到</span>
+      <span class="r">DeepSeek Harness</span>
+    </a>
+    <div style="margin-top:10px" class="muted" id="status">点击上面的按钮，或复制下面的链接粘到浏览器地址栏。</div>
+    <code class="url" id="urlBox"></code>
+    <button id="copyBtn">复制链接</button>
+  </div>
+
+  <div class="card">
+    <h2>协议参数（本地解析预览）</h2>
+    <table id="paramTable"></table>
+    <div class="muted" style="margin-top:10px">
+      这些参数会交给桌面端；客户端会弹出权限确认面板，确认后才拉取并解压到 <code>~/.dsh/plugins/</code>。
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>没反应？按顺序排查</h2>
+    <ol>
+      <li>确认装的是 <b>桌面端 (EXE)</b> 而不是纯 <code>dsh web</code> —— 协议由桌面端注册</li>
+      <li>浏览器第一次会弹「是否允许打开 DeepSeek Harness」，选<b>允许</b>；误点过就打开发送记录里手动放行</li>
+      <li>可以直接粘 <code>dsh://</code> 开头的地址到浏览器地址栏试一次</li>
+      <li>还是不行就跑一次插件的 <code>install.ps1</code>，它会兜底注册这个协议</li>
+      <li>用下面的手动方式验证协议是否注册成功（Windows）</li>
+    </ol>
+    <pre id="regHint"></pre>
+  </div>
+
+  <div class="card">
+    <h2>前端拉起代码（可复制到自己的项目）</h2>
+    <pre id="codeBlock"></pre>
+    <div class="muted" style="margin-top:10px">
+      隐藏 iframe 是标准做法：不会触发页面跳转，也不会被弹出拦截器拦掉。
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ── 插件身份。改这里就能复用到别的插件 ──
+  var PLUGIN = {
+    id: "dsh-anime-theme",
+    name: "二次元壁纸主题",
+    version: "1.4.0",
+    repo: "zxr2115-1/dsh-anime-theme",
+    permissions: "网络访问,本地存储"
+  };
+
+  /** 按 dsh://plugin/install 协议拼深链。所有 query 均需 encodeURIComponent。 */
+  function buildDeepLink(plugin) {
+    var params = new URLSearchParams({
+      id: plugin.id,
+      name: plugin.name,
+      version: plugin.version || "latest",
+      repo: plugin.repo || plugin.id,
+      permissions: plugin.permissions || "常规权限"
+    });
+    return "dsh://plugin/install?" + params.toString();
+  }
+
+  /** 标准拉起方式：隐藏 iframe，不跳转、不被弹窗拦截。 */
+  function installToDeepSeekDesktop(plugin) {
+    var iframe = document.createElement("iframe");
+    iframe.style.display = "none";
+    iframe.src = buildDeepLink(plugin);
+    document.body.appendChild(iframe);
+    setTimeout(function () { document.body.removeChild(iframe); }, 2000);
+  }
+
+  var deepLink = buildDeepLink(PLUGIN);
+
+  document.getElementById("installBtn").href = deepLink;
+  document.getElementById("urlBox").textContent = deepLink;
+
+  // 参数解析预览
+  var rows = "";
+  new URLSearchParams(deepLink.split("?")[1]).forEach(function (v, k) {
+    rows += "<tr><td>" + k + "</td><td>" + v + "</td></tr>";
+  });
+  document.getElementById("paramTable").innerHTML = rows;
+
+  // 复制
+  document.getElementById("copyBtn").onclick = function () {
+    var btn = this;
+    navigator.clipboard.writeText(deepLink).then(function () {
+      btn.textContent = "已复制 ✓";
+      setTimeout(function () { btn.textContent = "复制链接"; }, 1500);
+    }, function () {
+      btn.textContent = "复制失败，请手动选中";
+    });
+  };
+
+  // 点击时给出反馈（能不能唤起由系统决定，网页侧探测不到）
+  document.getElementById("installBtn").onclick = function () {
+    document.getElementById("status").innerHTML =
+      '<span class="warn">已发起 dsh:// 请求</span> —— 若浏览器弹确认框请选「允许」；没反应就看下面的排查清单。';
+  };
+
+  // 注册表检查命令
+  document.getElementById("regHint").textContent =
+    "reg query \"HKCU\\Software\\Classes\\dsh" + "\\shell\\open\\command";
+
+  // 前端代码片段
+  document.getElementById("codeBlock").textContent = [
+    "export function installToDeepSeekDesktop(plugin) {",
+    "  const params = new URLSearchParams({",
+    "    id: plugin.id,",
+    "    name: plugin.name,",
+    "    version: plugin.version || 'latest',",
+    "    repo: plugin.repo,",
+    "    permissions: plugin.permissions || '',",
+    "  });",
+    "  const iframe = document.createElement('iframe');",
+    "  iframe.style.display = 'none';",
+    "  iframe.src = \"dsh://plugin/install?\" + params.toString();",
+    "  document.body.appendChild(iframe);",
+    "  setTimeout(() => document.body.removeChild(iframe), 2000);",
+    "}"
+  ].join("\n");
+</script>
+</body>
+</html>

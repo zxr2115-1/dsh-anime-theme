@@ -10,6 +10,7 @@
  * 用法：node scripts/package.mjs
  */
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { dirname, join, relative } from "node:path";
 import { makeZip } from "./lib/zip.mjs";
 import { fileURLToPath } from "node:url";
@@ -28,6 +29,7 @@ const INCLUDE = [
   "plugin.json",
   "dsh.plugin.json",
   "config.example.json",
+  "test-uri-install.html",
   "README.md",
   "PUBLISH.md",
   "LICENSE",
@@ -41,7 +43,7 @@ const INCLUDE = [
   "assets",
 ];
 /** 打包工具自己不进包（npm 走 files 仍会带，市场 zip 不带） */
-const EXCLUDE_FILES = new Set(["scripts/package.mjs", "scripts/lib/zip.mjs"]);
+const EXCLUDE_FILES = new Set(["scripts/package.mjs", "scripts/lib/zip.mjs", "scripts/check-encoding.mjs"]);
 const EXCLUDE_DIRS = new Set(["dist", ".git", "node_modules"]);
 
 const DIST = join(ROOT, "dist");
@@ -70,6 +72,18 @@ if (lacked.length > 0) {
 }
 if (manifest.version !== VERSION) {
   console.error("版本号不一致：plugin.json=" + manifest.version + "  package.json=" + VERSION);
+  process.exit(1);
+}
+
+// ---------- 2.5 编码与换行符硬检查 ----------
+// .ps1 必须带 BOM、.json 不能带 BOM、.sh 必须 LF —— 这三条都是踩过坑的，
+// 而且很容易被编辑器或工具无声破坏（tools.edit 就会抹掉 BOM）。
+console.log("");
+try {
+  execFileSync(process.execPath, [join(ROOT, "scripts", "check-encoding.mjs")], { stdio: "inherit" });
+} catch (err) {
+  console.error("");
+  console.error("编码检查未通过，拒绝打包。");
   process.exit(1);
 }
 
