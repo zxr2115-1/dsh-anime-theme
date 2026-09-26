@@ -54,7 +54,7 @@
 装了 **DeepSeek Harness 桌面端**的话，把下面这行粘进浏览器地址栏，客户端会被唤起并弹出安装确认：
 
 ```
-dsh://plugin/install?id=dsh-anime-theme&name=%E4%BA%8C%E6%AC%A1%E5%85%83%E5%A3%81%E7%BA%B8%E4%B8%BB%E9%A2%98&version=1.4.1&repo=zxr2115-1/dsh-anime-theme&permissions=%E7%BD%91%E7%BB%9C%E8%AE%BF%E9%97%AE%2C%E6%9C%AC%E5%9C%B0%E5%AD%98%E5%82%A8
+dsh://plugin/install?id=dsh-anime-theme&name=%E4%BA%8C%E6%AC%A1%E5%85%83%E5%A3%81%E7%BA%B8%E4%B8%BB%E9%A2%98&version=1.5.0&repo=zxr2115-1/dsh-anime-theme&permissions=%E7%BD%91%E7%BB%9C%E8%AE%BF%E9%97%AE%2C%E6%9C%AC%E5%9C%B0%E5%AD%98%E5%82%A8
 ```
 
 > ⚠ **GitHub 会过滤 `dsh:` 这类自定义协议的链接**，所以在 README 里做的按钮点不动 —— 上面是给你复制的。
@@ -334,8 +334,45 @@ document.documentElement
 4. 控制坞注册进官方预留的浮动层槽位 `shell.overlay`（`kind: "list"`，可加性席位），
    注册失败时回退 `conversation.input.dock`。
 
-> 副作用：本插件开启期间，dsh-skin 自己的壁纸设置（内置主题 / 图片 / 视频）会被让位，
+> 副作用：本插件开启期间，宿主主题自己的壁纸设置（内置主题 / 图片 / 视频）会被让位，
 > 点控制坞的「开 / 关」即恢复。面板透明度始终归「设置 → 主题」里的滑杆。
+
+---
+
+## 🪟 与宿主主题共存（0.1.5 `dsh-skin` / 0.1.6 `liquid-glass`）
+
+DSH 0.1.6 把内置主题引擎换成了 `@deepseek-ai/dsh-client-ui-liquid-glass` 2.x，
+壁纸层的做法**完全变了** —— 旧版认的 `[data-dsh-theme-bg="true"]` 在新版里根本不存在：
+
+| | 0.1.5 及以前 | 0.1.6 起 |
+| --- | --- | --- |
+| 根标记 | —— | `<html data-dsh-liquid-glass="true">` |
+| 壁纸容器 | `<div data-dsh-theme-bg="true">` | `<div data-dsh-glass-ambient>` |
+| 壁纸本体 | 容器里的 `<img>` | `<canvas data-dsh-glass-canvas>`（WebGL 着色器现画） |
+| 纹理来源 | 就是那个 `<img>` | `<div data-dsh-glass-video-holder>` 里一个 **1×1、`opacity:.001` 的隐藏 `<video>`** |
+
+最后一行是关键：那个 `<video>` 肉眼完全看不见，却带着 `autoplay loop muted` **一直在解码**，
+画布再把它的帧当纹理渲染成壁纸。所以两套壁纸会叠在一起，而且白烧一路解码器和一份显存
+—— 这是「用了动态壁纸后桌面端很卡」的主要来源之一。
+
+检测到 `liquid-glass` 在场时，本插件会：
+
+- 藏掉 `[data-dsh-glass-ambient]`（画布 + 隐藏视频容器），让你的壁纸成为唯一背景；
+- 把那个隐藏 `<video>` 一并 `pause()`，停掉解码；
+- **不碰** `--dsw-alias-bg-*` 这组 token —— `liquid-glass` 自己用
+  `ctx.theme.overrideTokens` 把它们设成 `transparent` 来造玻璃感，再拿 `!important`
+  盖上不透明底色会把它整层压平、两套风格打架。所以 `isolatePanels` 在它面前自动让路。
+
+面板的磨砂、描边与折射 CSS 全部保留，只是背景换成了你的图。
+
+控制坞「设置」里因此多了一行 **宿主玻璃层：接管 / 不接管**：
+
+- **接管**（默认）—— 按上面做，最省 GPU；
+- **不接管** —— 保留 `liquid-glass` 自己画的壁纸。会和本插件叠在一起，
+  且那个隐藏视频继续解码，GPU 占用明显更高。
+
+> 想进一步降 GPU，可以到「设置 → 主题 → 液态玻璃」把它自己的折射 / 色散 / 涟漪等
+> 特效参数调低或关掉 —— 那部分开销归它管，本插件不越权修改别人的设置。
 
 ---
 
@@ -427,7 +464,7 @@ $env:PROBE_DARK='1'; node scripts/probe-css.mjs   # 跑深色分支
 市场（`deepseek.stream`）只收 **`.zip`**，一条命令打出可直接上传的包：
 
 ```bash
-node scripts/package.mjs        # → dist/dsh-anime-theme-1.4.1.zip
+node scripts/package.mjs        # → dist/dsh-anime-theme-1.5.0.zip
 ```
 
 打包脚本会先自检（清单文件齐不齐、`plugin.json` 字段全不全、两处版本号一致不一致），
@@ -438,6 +475,23 @@ node scripts/package.mjs        # → dist/dsh-anime-theme-1.4.1.zip
 收录规范、`dsh://` 一键安装链接、版本更新清单，以及几条**实测踩坑记录**
 （桌面端宿主会剥离 `dsh.bundle`、profile `bundles` 不能放第三方插件、本地依赖必须用 `file:`、
 Windows 下 `.ps1` 要带 BOM 而 `.json` 不能带等）都写在 **[PUBLISH.md](./PUBLISH.md)**。
+
+---
+
+## 📝 更新日志
+
+### v1.5.0
+- **适配 DSH 0.1.6 的新主题引擎** `@deepseek-ai/dsh-client-ui-liquid-glass` 2.x：
+  旧版只认 `[data-dsh-theme-bg="true"]`，在 0.1.6 上必然落空，会让两套壁纸叠在一起。
+- 新增「宿主玻璃层：接管 / 不接管」开关；接管时停掉隐藏视频的解码，显著降低 GPU 占用。
+- 可读性提示改为读 `liquid-glass` 的 `l1Opacity`（新版面板透明度由它管）。
+- `isolatePanels` 在 `liquid-glass` 在场时自动让路，避免压平玻璃层与 token 打架。
+- `scripts/probe-css.mjs` 增加三场景矩阵（旧主题 / liquid-glass / 无主题），
+  断言接管行为与 token 闸门都按预期生效。
+
+### v1.4.1
+- `author` 改为字符串（市场端 `String()` 会把它渲染成 `[object Object]`）。
+- 预览图改用 JPEG（842 KB → 102 KB）。
 
 ---
 

@@ -32,6 +32,7 @@ function makeEl(tag) {
     insertBefore(c) { c.parentNode = this; this.children.unshift(c); return c; },
     removeChild(c) { this.children = this.children.filter(x => x !== c); return c; },
     querySelector() { return null; },
+    querySelectorAll() { return []; },
     getBoundingClientRect() { return { width: 1266, height: 762, left: 0, top: 0 }; },
     get firstChild() { return this.children[0] || null; },
     get parentNode() { return this._p || null; },
@@ -45,6 +46,32 @@ const head = makeEl("head");
 const body = makeEl("body");
 const html = makeEl("html");
 html.style = { setProperty(k, v) { this[k] = v; }, removeProperty() {} };
+
+// ---------- 新版 (0.1.6+) liquid-glass 场景 ----------
+// PROBE_GLASS=1 时按 0.1.6 的真实 DOM 形状挂上：
+//   <html data-dsh-liquid-glass="true">
+//     <body> … <div data-dsh-glass-ambient>
+//                <canvas data-dsh-glass-canvas>
+//                <div data-dsh-glass-video-holder><video autoplay loop muted>
+// 那个 <video> 只有 1×1 且 opacity .001，看不见，但真的在解码 ——
+// 这就是本次要断言「插件把它的解码停掉」的原因。
+const glass = { ambient: null, holder: null, video: null, paused: null };
+if (process.env.PROBE_GLASS === "1") {
+  const video = makeEl("video");
+  video.pause = () => { glass.paused = true; };
+  video.paused = false;
+  const holder = makeEl("div");
+  holder.attrs["data-dsh-glass-video-holder"] = "";
+  holder.querySelectorAll = (sel) => (sel === "video" ? [video] : []);
+  const ambient = makeEl("div");
+  ambient.attrs["data-dsh-glass-ambient"] = "";
+  ambient.appendChild(holder);
+  glass.ambient = ambient;
+  glass.holder = holder;
+  glass.video = video;
+  html.setAttribute("data-dsh-liquid-glass", "true");
+}
+
 const doc = {
   head, body, documentElement: html,
   getElementById(id) {
@@ -52,6 +79,11 @@ const doc = {
   },
   createElement: makeEl,
   querySelector(sel) {
+    // 对照组：宿主什么主题层都没有（用来证明 token 兜底分支确实会走）
+    if (process.env.PROBE_NO_THEME === "1") return null;
+    if (sel.includes("data-dsh-glass-ambient")) return glass.ambient;
+    if (sel.includes("data-dsh-glass-video-holder")) return glass.holder;
+    if (sel.includes("data-dsh-glass-wallpaper")) return null;
     if (sel.includes("data-dsh-theme-bg")) { const s = makeEl("div"); s.attrs["data-dsh-theme-bg"] = "true"; s.parentNode = body; return s; }
     return null;
   },
@@ -102,6 +134,9 @@ const react = {
 
 // fetch 桩
 const CFG = JSON.parse(process.argv[3] || DEFAULT_CONFIG);
+// 玻璃场景默认打开 isolatePanels —— 用来证明「liquid-glass 在场时 token
+// 兜底分支被跳过」，否则 --dsw-alias-bg-* 会把它那层玻璃压成不透明色块。
+if ((process.env.PROBE_GLASS === "1" || process.env.PROBE_NO_THEME === "1") && process.argv[3] === undefined) CFG.isolatePanels = true;
 globalThis.fetch = async (url, opts) => {
   if (String(url).includes("/config") && (!opts || !opts.method)) {
     return { ok: true, text: async () => JSON.stringify({ ok: true, config: CFG }) };
@@ -236,4 +271,16 @@ console.log(JSON.stringify({
   darkFillAlpha: ((css.match(/dark="1"\] #dsh-anime-theme-bg::before\{[^}]*rgba\(\d+,\d+,\d+,([\d.]+)\)/) || [])[1]),
   darkAfterAlpha: ((css.match(/dark="1"\] #dsh-anime-theme-bg::after\{[^}]*rgba\(\d+,\d+,\d+,([\d.]+)\)/) || [])[1]),
   darkAfterPosition: (css.match(/dark="1"\] #dsh-anime-theme-bg::after\{[^}]*background-position:([^;]+);/) || [])[1],
+  // ---- liquid-glass (0.1.6+) 适配断言 ----
+  glass: {
+    scenario: process.env.PROBE_GLASS === "1",
+    detected: glass.ambient !== null,
+    hidesAmbient: css.includes('[data-dsh-glass-ambient]{display:none'),
+    hidesVideoEl: css.includes('[data-dsh-glass-video-holder] video{display:none'),
+    hidesWallpaperVariant: css.includes('[data-dsh-glass-wallpaper]{display:none'),
+    // 反证：玻璃在场时，token 兜底一条都不该出现
+    tokenFallbackEmitted: css.includes('--dsw-alias-bg-base'),
+    isolatePanelsWasTrue: CFG.isolatePanels === true,
+    videoPausedByPlugin: glass.paused === true,
+  },
 }, null, 2));

@@ -8,7 +8,7 @@
 ## 0. 最快路径
 
 ```bash
-node scripts/package.mjs                      # 打出 dist/dsh-anime-theme-1.4.1.zip
+node scripts/package.mjs                      # 打出 dist/dsh-anime-theme-1.5.0.zip
 # 打开 https://deepseek.stream/upload → 上传这个 zip
 ```
 
@@ -49,7 +49,7 @@ dsh-anime-theme/
 |------|-----------|
 | `id` | `dsh-anime-theme` |
 | `name` | `dsh-anime-theme` |
-| `version` | `1.4.1` |
+| `version` | `1.5.0` |
 | `description` | 一句话说明 |
 | `author` | `zxr2115-1` |
 | `platform` | `all`（可选 `all` / `desktop-exe` / `linux` / `web`） |
@@ -133,7 +133,7 @@ Get-Content $env:TEMP\dsh-check\dsh-anime-theme\plugin.json
 本插件的实际链接（各参数已 URL 编码）：
 
 ```
-dsh://plugin/install?id=dsh-anime-theme&name=%E4%BA%8C%E6%AC%A1%E5%85%83%E5%A3%81%E7%BA%B8%E4%B8%BB%E9%A2%98&version=1.4.1&repo=zxr2115-1/dsh-anime-theme&permissions=%E7%BD%91%E7%BB%9C%E8%AE%BF%E9%97%AE%2C%E6%9C%AC%E5%9C%B0%E5%AD%98%E5%82%A8
+dsh://plugin/install?id=dsh-anime-theme&name=%E4%BA%8C%E6%AC%A1%E5%85%83%E5%A3%81%E7%BA%B8%E4%B8%BB%E9%A2%98&version=1.5.0&repo=zxr2115-1/dsh-anime-theme&permissions=%E7%BD%91%E7%BB%9C%E8%AE%BF%E9%97%AE%2C%E6%9C%AC%E5%9C%B0%E5%AD%98%E5%82%A8
 ```
 
 协议格式：`dsh://plugin/install?id=&name=&version=&repo=&permissions=&downloadUrl=`。
@@ -177,7 +177,7 @@ setTimeout(() => document.body.removeChild(iframe), 2000);
 如果还想支持 `dsh plugin --profile web add dsh-anime-theme` 这种管路：
 
 ```bash
-git init && git add . && git commit -m "feat: 二次元壁纸主题 v1.4.1"
+git init && git add . && git commit -m "feat: 二次元壁纸主题 v1.5.0"
 git branch -M main
 git remote add origin https://github.com/zxr2115-1/dsh-anime-theme.git
 git push -u origin main
@@ -218,7 +218,7 @@ grep -rn "1\.4\.0" --include=*.js --include=*.json .
 
 ```bash
 node scripts/probe-css.mjs && node scripts/check-install.js
-git commit -am "release: v1.4.1" && git tag v1.4.1 && git push --follow-tags
+git commit -am "release: v1.5.0" && git tag v1.5.0 && git push --follow-tags
 node scripts/package.mjs          # 重新打包上传
 ```
 
@@ -275,6 +275,27 @@ cleanLegacyState: healed plugin exports and dsh.client for dsh-anime-theme
 PowerShell 5.1 默认按 ANSI/GBK 读 `.ps1`，无 BOM 的中文注释和路径会变乱码，
 脚本直接找不到文件。反过来，所有 `.json` 产物必须**无** BOM，否则 Node 的
 `JSON.parse` 会抛 `SyntaxError: Unexpected token`。
+
+### ⑦ 0.1.6 换了主题引擎，壁纸层的 DOM 契约整个变了
+
+0.1.5 及以前，宿主壁纸层是 `[data-dsh-theme-bg="true"]` 里放一个 `<img>`。
+0.1.6 换成 `@deepseek-ai/dsh-client-ui-liquid-glass` 2.x 之后：
+
+- 根标记是 `<html data-dsh-liquid-glass="true">`；
+- 壁纸由 `<canvas data-dsh-glass-canvas>` 的 **WebGL 着色器现画**，不是 `<img>`；
+- 纹理来源是 `[data-dsh-glass-video-holder]` 里一个 1×1、`opacity:.001` 的隐藏 `<video>`，
+  它带 `autoplay loop muted`，**看不见但一直在解码**。
+
+于是只按旧选择器判断的插件会静默失效：检测不到宿主层 → 两套壁纸叠在一起，
+同时白烧一路解码器和一份显存。
+
+**还有一个坑**：该包 `lib/types/client/*.js` 是**过期的源码残留**，里面的
+`AMBIENT_MARKUP` 写的是 `[data-dsh-glass-wallpaper]` + `<img>`；真正跑的是编译产物
+`lib/client.js`，它用的是 `[data-dsh-glass-video-holder]` + `<video>`。
+**要看编译产物，不要看 `lib/types/` 下那几个同名 `.js`。**
+
+> 定位提示：拿不准就用 `process.argv` 之外的手段直接搜字符串 ——
+> `Get-Content -Raw lib/client.js` 然后 `indexOf`，比读源码可靠。
 
 ---
 

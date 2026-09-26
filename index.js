@@ -17,7 +17,7 @@ import { Readable } from "node:stream";
 export const name = "dsh-anime-theme";
 
 /** 与 package.json 保持一致的版本号（健康检查用）。 */
-const PLUGIN_VERSION = "1.4.1";
+const PLUGIN_VERSION = "1.5.0";
 
 /** 无必需服务：webServer 走可选用注入，缺失时不阻塞插件加载。 */
 export const inject = [];
@@ -86,6 +86,9 @@ const DEFAULT_CONFIG = {
   darkBoost: true,
   coverFocus: 25,
   isolatePanels: false,
+  // 新版 liquid-glass 主题接管：藏掉它的 WebGL 画布与隐藏视频，让本插件壁纸当底。
+  // 新增键不进 LEGACY_DISPLAY_KEYS，老配置缺这个键会自然回落到这里的 true。
+  glassTakeover: true,
   dockX: 18,
   dockY: 76,
   schemaVersion: SCHEMA_VERSION,
@@ -171,7 +174,7 @@ function appendDiagnostic(payload) {
 }
 
 /** 只接受已知键，并且做类型收敛，防止客户端把任意 JSON 塞进配置文件。 */
-const BOOL_KEYS = ["enabled", "allowNsfw", "isolatePanels", "darkBoost"];
+const BOOL_KEYS = ["enabled", "allowNsfw", "isolatePanels", "darkBoost", "glassTakeover"];
 const STR_KEYS = ["sortSfw", "sortNsfw"];
 /** 枚举键：只放行白名单取值。 */
 const ENUM_KEYS = {

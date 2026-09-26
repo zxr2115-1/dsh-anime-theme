@@ -39,6 +39,21 @@
         var STYLE_ID = "dsh-anime-theme-style";
         var FALLBACK_BG_ID = "dsh-anime-theme-bg";
         var HOST_BG_SELECTOR = '[data-dsh-theme-bg="true"]';
+        // ── 新版宿主壁纸层：DSH 0.1.6+ 的 @deepseek-ai/dsh-client-ui-liquid-glass ──
+        //  0.1.5 及以前是 dsh-skin：一个 <div data-dsh-theme-bg="true"> 里放 <img>。
+        //  0.1.6 起换成 liquid-glass，真实 DOM 是：
+        //    <html data-dsh-liquid-glass="true">
+        //      <body> … <div data-dsh-glass-ambient aria-hidden="true"
+        //                     style="position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden">
+        //               <canvas data-dsh-glass-canvas>   ← WebGL 着色器画壁纸 + 折射
+        //               <div data-dsh-glass-video-holder style="width:1px;height:1px;opacity:.001">
+        //                 <video autoplay loop muted>    ← 壁纸纹理源，看不见但真在解码
+        //  所以「宿主壁纸层」不再是一个元素，也不再有 <img>；旧选择器在 0.1.6 上必然落空。
+        var GLASS_ROOT_ATTR = "data-dsh-liquid-glass";
+        var GLASS_AMBIENT_SELECTOR = "[data-dsh-glass-ambient]";
+        var GLASS_VIDEO_HOLDER_SELECTOR = "[data-dsh-glass-video-holder]";
+        var GLASS_WALLPAPER_SELECTOR = "[data-dsh-glass-wallpaper]";
+        var GLASS_SETTINGS_KEY = "dsh.ui-liquid-glass.settings";
         var MAX_RETRY = 3;
 
         var DEFAULTS = {
@@ -56,6 +71,9 @@
           darkBoost: true,
           coverFocus: 25,
           isolatePanels: false,
+          // 接管新版 liquid-glass：藏掉它的 WebGL 画布和那个隐藏 <video>，
+          // 让本插件的壁纸当底；面板的磨砂/描边 CSS 保持不动。
+          glassTakeover: true,
           // 停靠位：相对「右下角」的偏移，右下角状态栏有读数，默认抬高让开
           dockX: 18,
           dockY: 76
@@ -261,9 +279,80 @@
           return typeof skin.dialogAlpha === "number" ? skin.dialogAlpha : 0;
         }
 
-        /** dsh-skin 的壁纸层在不在？（只用于状态提示） */
+        /** liquid-glass 自己的设置（同源 localStorage，key 由它自己写）。 */
+        function readGlassSettings() {
+          try {
+            if (!window.localStorage) return null;
+            var raw = window.localStorage.getItem(GLASS_SETTINGS_KEY);
+            if (!raw) return null;
+            var parsed = JSON.parse(raw);
+            return parsed && typeof parsed === "object" ? parsed : null;
+          } catch (err) { return null; }
+        }
+
+        /**
+         * 面板底色透明度 —— 判断「正文会不会直接压在壁纸上」。
+         *  0.1.6+ 看 liquid-glass 的 l1Opacity（一层基底玻璃的底，默认 0.1，非常透）；
+         *  老版看 dsh-skin 的 dialogAlpha。
+         */
+        function panelAlphaOf() {
+          var lg = readGlassSettings();
+          if (lg && typeof lg.l1Opacity === "number") return lg.l1Opacity;
+          return dialogAlphaOf();
+        }
+
+        /** 当前生效的是哪套宿主主题层，用于状态文案。 */
+        function themeKind() {
+          if (glassActive()) return "liquid-glass";
+          if (hostLayer()) return "dsh-skin";
+          return "none";
+        }
+
+        /** 老版 dsh-skin 的壁纸层在不在？（只用于状态提示） */
         function hostLayer() {
           try { return document.querySelector(HOST_BG_SELECTOR); } catch (err) { return null; }
+        }
+
+        /** 新版 liquid-glass 主题在不在？根属性或环境场景任一命中即可。 */
+        function glassActive() {
+          try {
+            var root = document.documentElement;
+            if (root && root.hasAttribute(GLASS_ROOT_ATTR)) return true;
+            return !!document.querySelector(GLASS_AMBIENT_SELECTOR);
+          } catch (err) { return false; }
+        }
+
+        /** 用户是否允许接管（默认接管）。 */
+        function glassTakeover() {
+          return store.config.glassTakeover !== false;
+        }
+
+        /**
+         * 要藏掉的宿主壁纸层选择器。
+         * 环境场景容器本身没有背景、pointer-events:none，整块藏掉最干净；
+         * GLASS_WALLPAPER_SELECTOR 是给另一版 DOM 变体兜底的（源码里还留着）。
+         */
+        function glassNodes() {
+          if (!glassActive()) return null;
+          return [GLASS_AMBIENT_SELECTOR, GLASS_WALLPAPER_SELECTOR];
+        }
+
+        /**
+         * 停掉 liquid-glass 那个隐藏 <video>。
+         * CSS 的 display:none 已经足够让 Chromium 挂起解码器，这里是补一刀：
+         * 主题切设置时可能重新 play()，所以每次 applyCss 都要再摁一次。
+         * 只 pause，不动 src / autoplay —— 用户关掉接管时主题还能自己恢复。
+         */
+        function pauseGlassVideo() {
+          if (!glassTakeover() || !glassActive()) return;
+          try {
+            var holder = document.querySelector(GLASS_VIDEO_HOLDER_SELECTOR);
+            if (!holder) return;
+            var vids = holder.querySelectorAll("video");
+            for (var i = 0; i < vids.length; i++) {
+              try { vids[i].pause(); } catch (err2) { /* 忽略 */ }
+            }
+          } catch (err) { /* 忽略 */ }
         }
 
         /**
@@ -466,8 +555,19 @@
           var baseFillDim = forceDark ? darkFillDim : lightFillDim;
           var baseDim = forceDark ? darkDim : lightDim;
 
-          // ── 壁纸层：藏掉 dsh-skin 那层，改用挂在 <html> 下的自建层 ──
+          // ── 壁纸层：藏掉宿主自带那层，改用挂在 <html> 下的自建层 ──
+          //  旧版（≤0.1.5）dsh-skin：
           lines.push(HOST_BG_SELECTOR + "{display:none !important;}");
+          //  新版（0.1.6+）liquid-glass：壁纸是画布画的，藏画布 = 藏壁纸。
+          //  顺带把那个 1×1 的隐藏 <video> 一起藏了，否则它继续喂纹理、
+          //  解码器和显存照烧，用户体感就是「卡」。
+          var glass = glassNodes();
+          if (glass) {
+            for (var gi = 0; gi < glass.length; gi++) {
+              lines.push(glass[gi] + "{display:none !important;}");
+            }
+            lines.push(GLASS_VIDEO_HOLDER_SELECTOR + " video{display:none !important;}");
+          }
           lines.push("html,body{background:transparent !important;}");
 
           var selfSelector = "#" + FALLBACK_BG_ID;
@@ -492,7 +592,11 @@
           //      面板透明度归 dsh-skin 的 themeAlpha / dialogAlpha（走
           //      ctx.theme.overrideTokens），再用 !important 去压会踩坏它的滑杆。
           //      isolatePanels 仅在完全没装 dsh-skin 时才生效。
-          if (!hostLayer() && store.config.isolatePanels === true) {
+          //  liquid-glass 会用 ctx.theme.overrideTokens 把这一组 token 全设成
+          //  transparent（LIQUID_GLASS_TOKEN_OVERRIDES），玻璃感就靠它。
+          //  我们再拿 !important 盖上不透明的底色，会把它整层压平、
+          //  面板变成两套风格打架 —— 所以它在就一律不碰。
+          if (!hostLayer() && !glassActive() && store.config.isolatePanels === true) {
             var strength = surfaceStrength();
             var selectors = ["body", "body[data-ds-dark-theme]"];
             for (var i = 0; i < selectors.length; i++) {
@@ -522,6 +626,8 @@
           var active = store.config.enabled === true && !!store.url;
           var layer = active ? ensureLayer() : document.getElementById(FALLBACK_BG_ID);
           if (layer) layer.style.display = active ? "block" : "none";
+
+          pauseGlassVideo();
         }
 
         function teardown() {
@@ -669,7 +775,9 @@
           var dark = useDarkUi();
           var config = snap.config;
           var open = snap.panelOpen;
-          var takeover = !!hostLayer();
+          // 宿主壁纸层：老版 dsh-skin 与新版 liquid-glass 都算「有」
+          var themeKindNow = themeKind();
+          var takeover = themeKindNow !== "none";
 
           var dockRef = react.useRef(null);
           var dragRef = react.useRef(null);
@@ -1062,6 +1170,39 @@
               )
             );
 
+            // 只在 liquid-glass 在场时才显示 —— 老版本上这行是死选项
+            if (glassActive()) {
+              body.push(
+                react.createElement(
+                  "div",
+                  { key: "glass", style: rowStyle },
+                  react.createElement("span", { style: labelStyle }, "宿主玻璃层"),
+                  react.createElement(
+                    "div",
+                    { style: { display: "flex", gap: "6px" } },
+                    react.createElement(
+                      "button",
+                      {
+                        style: chipStyle(dark, glassTakeover()),
+                        title: "藏掉 liquid-glass 的 WebGL 画布和那个隐藏视频，让本插件的壁纸当底；面板磨砂/描边照旧。省 GPU。",
+                        onClick: function () { saveConfig({ glassTakeover: true }).then(applyCss); }
+                      },
+                      "接管"
+                    ),
+                    react.createElement(
+                      "button",
+                      {
+                        style: chipStyle(dark, !glassTakeover()),
+                        title: "保留 liquid-glass 自己画的壁纸。会和本插件叠在一起，且那个隐藏视频继续解码，GPU 占用高。",
+                        onClick: function () { saveConfig({ glassTakeover: false }).then(applyCss); }
+                      },
+                      "不接管"
+                    )
+                  )
+                )
+              );
+            }
+
             body.push(
               react.createElement(
                 "div",
@@ -1144,12 +1285,15 @@
                   { style: labelStyle },
                   "当前分类：" + (config.allowNsfw === true ? (config.sortNsfw || DEFAULTS.sortNsfw) : (config.sortSfw || DEFAULTS.sortSfw)) + (config.allowNsfw === true ? "（色图池）" : "（无色图池）")
                 ),
-                dialogAlphaOf() < 0.25
+                panelAlphaOf() < 0.25
                   ? react.createElement(
                       "span",
                       { style: { color: COLORS.warn, fontSize: "11px", wordBreak: "break-all" } },
-                      "对话栏几乎全透（dsh-skin dialogAlpha=" + dialogAlphaOf() + "），正文会直接压在壁纸上导致看不清。" +
-                      "到「设置 → 主题」把「对话栏透明度」拉到 0.6 以上即可（侧栏/设置面板不受影响）。"
+                      themeKindNow === "liquid-glass"
+                        ? "面板几乎全透（liquid-glass l1Opacity=" + panelAlphaOf() + "），正文会直接压在壁纸上导致看不清。" +
+                          "到「设置 → 主题 → 液态玻璃」把「一层基底雾面玻璃」的不透明度拉到 0.5 以上即可。"
+                        : "对话栏几乎全透（dsh-skin dialogAlpha=" + panelAlphaOf() + "），正文会直接压在壁纸上导致看不清。" +
+                          "到「设置 → 主题」把「对话栏透明度」拉到 0.6 以上即可（侧栏/设置面板不受影响）。"
                     )
                   : null,
                 snap.downgraded
@@ -1158,7 +1302,11 @@
                 react.createElement(
                   "span",
                   { style: labelStyle },
-                  takeover ? "壁纸层：自建（已挂到 <html> 下）" : "壁纸层：自建（未检测到 dsh-skin）"
+                  themeKindNow === "liquid-glass"
+                    ? (glassTakeover() ? "壁纸层：自建（已接管 liquid-glass 画布）" : "壁纸层：自建（liquid-glass 画布未接管）")
+                    : themeKindNow === "dsh-skin"
+                      ? "壁纸层：自建（已接管 dsh-skin）"
+                      : "壁纸层：自建（未检测到宿主主题层）"
                 ),
                 react.createElement(
                   "span",
@@ -1166,7 +1314,13 @@
                   snap.hostMode ? "宿主路由：已就绪" : "宿主路由：不可用"
                 ),
                 takeover
-                  ? react.createElement("span", { style: labelStyle }, "面板透明度请到「设置 → 主题」里调")
+                  ? react.createElement(
+                      "span",
+                      { style: labelStyle },
+                      themeKindNow === "liquid-glass"
+                        ? "面板磨砂/透明度请到「设置 → 主题 → 液态玻璃」里调"
+                        : "面板透明度请到「设置 → 主题」里调"
+                    )
                   : null,
                 react.createElement(
                   "div",
@@ -1334,6 +1488,18 @@
               darkAttr: document.documentElement.getAttribute("data-dsh-anime-dark"),
               bodyHasDarkAttr: document.body ? document.body.hasAttribute("data-ds-dark-theme") : null,
               skinSettings: readSkinSettings(),
+              // 新版 liquid-glass 的接管状态：用来确认画布藏没藏、视频停没停
+              themeKind: themeKind(),
+              glassActive: glassActive(),
+              glassTakeover: glassTakeover(),
+              glassAmbientPresent: !!document.querySelector(GLASS_AMBIENT_SELECTOR),
+              glassVideoCount: (function () {
+                try { var h = document.querySelector(GLASS_VIDEO_HOLDER_SELECTOR); return h ? h.querySelectorAll("video").length : 0; } catch (e) { return null; }
+              })(),
+              glassVideoPaused: (function () {
+                try { var h = document.querySelector(GLASS_VIDEO_HOLDER_SELECTOR); var v = h && h.querySelector("video"); return v ? v.paused : null; } catch (e) { return null; }
+              })(),
+              glassSettings: readGlassSettings(),
               wallpaperUrl: store.url,
               containBox: containBox,
               config: { fit: store.config.fit, fillBlur: store.config.fillBlur, dim: store.config.dim, veil: store.config.veil },
