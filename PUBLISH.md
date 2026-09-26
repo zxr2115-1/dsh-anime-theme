@@ -388,6 +388,38 @@ guide 原文：
 
 ---
 
+### ⑪ 「更新版本」时把 `downloadUrl` 填成仓库主页 → 整个下载链路 302 到 HTML
+
+guide 对 `downloadUrl` 的定义：
+
+> 离线 zip/tar 安装包**直链**地址（**备用回退分发渠道**）。
+
+它是**可选**的备用直链。如果填了，平台会优先走它。实测把仓库主页填进去之后的后果：
+
+```
+GET /api/plugins/download?id=dsh-anime-theme
+  -> 302 Found
+     location: https://github.com/zxr2115-1/dsh-anime-theme     # 仓库主页，不是归档
+  -> 200 text/html  500,338 B      首字节 0A 0A 0A 0A（不是 504B0304）
+```
+
+**装不上了** —— 用户点安装拿到的是一个 HTML 页面。同一个「更新版本」动作还让
+`readme` 从 15,020 字符掉成 **0**（那条路径不做 README 提取）。
+
+正确的两种填法：
+
+| 做法 | 结果 |
+| --- | --- |
+| **留空**（推荐） | 平台从 `githubRepo` 自行拼 `archive/refs/heads/main.zip` |
+| 填归档直链 | `https://github.com/<owner>/<repo>/archive/refs/heads/main.zip`（实测 200 / 183 KB） |
+
+**不要填**：仓库主页、`/tree/main`、任何返回 HTML 的地址。
+
+> 想要 README 被提取，用 **GitHub 导入**那条路径（能抓 README）；纯 zip 上传那条
+> 我们实测拿到的 `readme` 长度是 0。两条路各有取舍，见 ⑫。
+
+---
+
 ## 8. 一句话总览
 
 ```
