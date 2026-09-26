@@ -133,7 +133,7 @@ Get-Content $env:TEMP\dsh-check\dsh-anime-theme\plugin.json
 本插件的实际链接（各参数已 URL 编码）：
 
 ```
-dsh://plugin/install?id=dsh-anime-theme&name=%E4%BA%8C%E6%AC%A1%E5%85%83%E5%A3%81%E7%BA%B8%E4%B8%BB%E9%A2%98&version=1.5.3&repo=zxr2115-1/dsh-anime-theme&permissions=%E7%BD%91%E7%BB%9C%E8%AE%BF%E9%97%AE%2C%E6%9C%AC%E5%9C%B0%E5%AD%98%E5%82%A8
+dsh://plugin/install?id=dsh-anime-theme&name=%E4%BA%8C%E6%AC%A1%E5%85%83%E5%A3%81%E7%BA%B8%E4%B8%BB%E9%A2%98&version=1.5.3&repo=zxr2115-1/dsh-anime-theme&permissions=%E7%BD%91%E7%BB%9C%E8%AE%BF%E9%97%AE%2C%E6%9C%AC%E5%9C%B0%E5%AD%98%E5%82%A8%2C%E5%AE%A2%E6%88%B7%E7%AB%AF%E6%A0%B7%E5%BC%8F%E6%B3%A8%E5%85%A5
 ```
 
 协议格式：`dsh://plugin/install?id=&name=&version=&repo=&permissions=&downloadUrl=`。
@@ -360,6 +360,31 @@ rm -rf ~/.dsh/profiles/desktop/node_modules/.pnpm/dsh-anime-theme@* && pnpm inst
 
 > 兜底：载荷超过 48 KB 会自动降级成摘要，并留一条 `{"kind":"oversize","bytes":292547}`
 > —— 至少让你知道「它曾经太大」，而不是整条消失。
+
+---
+
+### ⑩ `permissions` 是「给人看的描述文本」，不是英文枚举键
+
+guide 原文：
+
+> `permissions` | `string` | 可选 | **插件所需权限描述（客户端弹窗提示用）**。
+> 例如：`网络访问, 本地文件读取`
+
+我们一开始按英文键写了 `["network", "storage", "ui-injection"]`，市场就**按词猜翻译**：
+
+| 我们写的 | 市场显示 |
+| --- | --- |
+| `network` | 网络访问 ✅ |
+| `storage` | （丢弃） |
+| `ui-injection` | **系统提示词注入** ❌ |
+
+最后那个是错的，而且比实际能力严重得多 —— 本插件只是注入样式，并不碰系统提示词。
+**一条公开列表上的假能力声明，比不写更糟**：轻则吓跑用户，重则是合规问题。
+
+改成中文描述后（`["网络访问", "本地存储", "客户端样式注入"]`）市场原样展示。
+顺手删掉了自造的 `permissionsDisplay` —— 一个字段只留一个来源，别留两份真值。
+
+> 深链 `dsh://plugin/install?...&permissions=` 里的取值也要同步（URL 编码后逗号写成 `%2C`）。
 
 ---
 

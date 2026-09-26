@@ -8,9 +8,9 @@
   "harnessVersion": ">=0.1.0",
   "entry": "index.js",
   "permissions": [
-    "network",
-    "storage",
-    "ui-injection"
+    "网络访问",
+    "本地存储",
+    "客户端样式注入"
   ],
   "tags": [
     "deepseek",
@@ -26,11 +26,6 @@
   "main": "./index.js",
   "client": "./client.js",
   "browser": "./client.js",
-  "permissionsDisplay": [
-    "网络访问",
-    "本地存储",
-    "客户端样式注入"
-  ],
   "icon": "./assets/icon.png",
   "contributes": {
     "wallpaper": true,
