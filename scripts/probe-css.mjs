@@ -66,6 +66,17 @@ if (process.env.PROBE_GLASS === "1") {
   const ambient = makeEl("div");
   ambient.attrs["data-dsh-glass-ambient"] = "";
   ambient.appendChild(holder);
+  // 画布桩：断言插件会通过 WEBGL_lose_context 停掉着色器
+  const canvas = makeEl("canvas");
+  canvas.attrs["data-dsh-glass-canvas"] = "";
+  canvas.getContext = () => ({
+    getExtension: (name) => (name === "WEBGL_lose_context"
+      ? { loseContext: () => { glass.contextLost = true; },
+          restoreContext: () => { glass.contextLost = false; } }
+      : null),
+  });
+  ambient.appendChild(canvas);
+  glass.canvas = canvas;
   glass.ambient = ambient;
   glass.holder = holder;
   glass.video = video;
@@ -81,6 +92,7 @@ const doc = {
   querySelector(sel) {
     // 对照组：宿主什么主题层都没有（用来证明 token 兜底分支确实会走）
     if (process.env.PROBE_NO_THEME === "1") return null;
+    if (sel.includes("data-dsh-glass-canvas")) return glass.canvas;
     if (sel.includes("data-dsh-glass-ambient")) return glass.ambient;
     if (sel.includes("data-dsh-glass-video-holder")) return glass.holder;
     if (sel.includes("data-dsh-glass-wallpaper")) return null;
@@ -282,6 +294,7 @@ console.log(JSON.stringify({
     tokenFallbackEmitted: css.includes('--dsw-alias-bg-base'),
     isolatePanelsWasTrue: CFG.isolatePanels === true,
     videoPausedByPlugin: glass.paused === true,
+    shaderContextLost: glass.contextLost === true,
   },
 }, null, 2));
 

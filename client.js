@@ -51,6 +51,7 @@
         //  所以「宿主壁纸层」不再是一个元素，也不再有 <img>；旧选择器在 0.1.6 上必然落空。
         var GLASS_ROOT_ATTR = "data-dsh-liquid-glass";
         var GLASS_AMBIENT_SELECTOR = "[data-dsh-glass-ambient]";
+        var GLASS_CANVAS_SELECTOR = "[data-dsh-glass-canvas]";
         var GLASS_VIDEO_HOLDER_SELECTOR = "[data-dsh-glass-video-holder]";
         var GLASS_WALLPAPER_SELECTOR = "[data-dsh-glass-wallpaper]";
         var GLASS_SETTINGS_KEY = "dsh.ui-liquid-glass.settings";
@@ -343,6 +344,62 @@
         var glassScheduled = false;
         /** 盯住视频容器的 MutationObserver。 */
         var glassObserver = null;
+        /** 是否已经强制丢弃过 liquid-glass 的 WebGL 上下文。 */
+        var glassContextLost = false;
+        /** 拿到的 WEBGL_lose_context 扩展，用于恢复。 */
+        var glassGlExt = null;
+
+        /**
+         * 停掉 liquid-glass 的 WebGL 着色器 —— 这才是真正管用的那一刀。
+         *
+         * 为什么「藏画布」和「pause 视频」都不够：
+         *   1) 它的渲染循环是无条件的（document.hidden / visibilitychange /
+         *      IntersectionObserver / offsetParent 全是零命中），display:none 只是
+         *      不参与合成，gl.drawArrays 每帧照跑；
+         *   2) 更要命的是 drawScene() 里有一行**自愈式播放**：
+         *          if (customVideo.paused) customVideo.play()
+         *      它每帧都会把我们 pause 掉的视频重新拉起来，所以 pause 根本留不住。
+         *      （实测：pause 之后 videodecode 不但没降，反而从 4.8% 升到 6.7%。）
+         *
+         * 走它自己的生命周期最干净：
+         *   loseContext() → webglcontextlost → 它自己 active.dispose()，
+         *   而那个 dispose() 里正好是 cancelAnimationFrame + 停掉并卸掉视频。
+         * 于是着色器开销与视频解码一起归零；restoreContext() 能让它原样重建。
+         *
+         * 视觉上零损失：接管模式下画布本来就已经被 display:none 藏掉了。
+         */
+        function killGlassShader() {
+          if (glassContextLost || !glassTakeover() || !glassActive()) return;
+          try {
+            var canvas = document.querySelector(GLASS_CANVAS_SELECTOR);
+            if (!canvas) return;
+            var gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+            if (!gl) return;
+            var ext = gl.getExtension("WEBGL_lose_context");
+            if (!ext) return;
+            glassGlExt = ext;
+            glassContextLost = true;
+            ext.loseContext();
+          } catch (err) { /* 忽略 */ }
+        }
+
+        /** 用户关掉接管时把上下文还回去 —— 主题会自己重建着色器与壁纸视频。 */
+        function restoreGlassShader() {
+          if (!glassContextLost) return;
+          glassContextLost = false;
+          try { if (glassGlExt) glassGlExt.restoreContext(); } catch (err) { /* 忽略 */ }
+          glassGlExt = null;
+        }
+
+        /** 接管这件事是不是已经做完，不用再排重试了。 */
+        function glassDone() {
+          if (glassContextLost) return true;   // 着色器已停，视频随之被销毁
+          try {
+            // 没有画布可停（无着色器的变体）+ 视频也摁过了 => 收工
+            if (!document.querySelector(GLASS_CANVAS_SELECTOR) && glassVideoDone) return true;
+          } catch (err) { /* 忽略 */ }
+          return false;
+        }
         /**
          * 已经成功摁停过一次视频。摁停之后就不必再排延迟重试了 ——
          * 否则「最后一个定时器复位 glassScheduled 再调 applyCss」会无限自我重排。
@@ -385,7 +442,7 @@
          */
         function wireGlassWatch() {
           if (!glassTakeover() || !glassActive()) return;
-          if (glassVideoDone) return;   // 已经摁停过，收工
+          if (glassDone()) return;   // 都做完了，收工
 
           // ① 盯住容器：<video> 一被塞进去就摁停，然后收工
           try {
@@ -702,11 +759,19 @@
           var layer = active ? ensureLayer() : document.getElementById(FALLBACK_BG_ID);
           if (layer) layer.style.display = active ? "block" : "none";
 
-          pauseGlassVideo();
-          wireGlassWatch();
+          // 接管：藏画布 + 摁停视频 + 停掉着色器；不接管：把上下文还回去
+          if (glassTakeover()) {
+            pauseGlassVideo();
+            killGlassShader();
+            wireGlassWatch();
+          } else {
+            restoreGlassShader();
+          }
         }
 
         function teardown() {
+          // 还回去再收摊，别把别人的 WebGL 上下文永久废掉
+          restoreGlassShader();
           unwireGlassWatch();
           var style = document.getElementById(STYLE_ID);
           if (style && style.parentNode) style.parentNode.removeChild(style);
@@ -1261,7 +1326,7 @@
                       "button",
                       {
                         style: chipStyle(dark, glassTakeover()),
-                        title: "藏掉 liquid-glass 的 WebGL 画布和那个隐藏视频，让本插件的壁纸当底；面板磨砂/描边照旧。省 GPU。",
+                        title: "让本插件的壁纸当底：藏掉 liquid-glass 的画布、摁停隐藏视频，并停掉它的 WebGL 着色器（那玩意儿每帧全屏重绘 + 上传 1080p 纹理，是 GPU 大头）。面板磨砂/描边照旧。",
                         onClick: function () { saveConfig({ glassTakeover: true }).then(applyCss); }
                       },
                       "接管"
@@ -1270,7 +1335,7 @@
                       "button",
                       {
                         style: chipStyle(dark, !glassTakeover()),
-                        title: "保留 liquid-glass 自己画的壁纸。会和本插件叠在一起，且那个隐藏视频继续解码，GPU 占用高。",
+                        title: "保留 liquid-glass 自己画的壁纸与其着色器。会和本插件叠在一起，GPU 占用高；切回接管会把 WebGL 上下文还给它、原样重建。",
                         onClick: function () { saveConfig({ glassTakeover: false }).then(applyCss); }
                       },
                       "不接管"
