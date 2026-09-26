@@ -105,6 +105,16 @@ const doc = {
 // 探针默认跑浅色分支；PROBE_DARK=1 时先给 <body> 打上深色标记，跑深色分支
 if (process.env.PROBE_DARK === "1") body.setAttribute("data-ds-dark-theme", "");
 
+// localStorage 桩：塞一个和真机同量级的「内联 base64 视频壁纸」。
+// 回归点：诊断载荷里绝不能原样带上它 —— 真机实测 291,568 字符 / 285 KB，
+// 而宿主 MAX_BODY_BYTES 只有 64 KB，超限会被 request.destroy() 掐断，
+// 整条诊断都发不出去（而且当年是静默 catch，症状完全看不出来）。
+const BIG_WALLPAPER = "video:data:video/mp4;base64," + "A".repeat(291500);
+const GLASS_SETTINGS = JSON.stringify({
+  enabled: true, l1Opacity: 0.1, l1Blur: 2, background: "wallpaper", wallpaper: BIG_WALLPAPER,
+});
+globalThis.__bigWallpaperLength = BIG_WALLPAPER.length;
+
 globalThis.document = doc;
 globalThis.window = Object.assign(globalThis, {
   innerWidth: 1266, innerHeight: 762, devicePixelRatio: 1.25,
@@ -112,6 +122,11 @@ globalThis.window = Object.assign(globalThis, {
   getComputedStyle: () => ({ transform: "none", filter: "none", zoom: "1", contain: "none", willChange: "auto", backgroundSize: "cover, contain", backgroundImage: "" }),
   matchMedia: () => ({ matches: false, addEventListener() {} }),
   MutationObserver: class { observe() {} disconnect() {} },
+  localStorage: {
+    getItem: (k) => (k === "dsh.ui-liquid-glass.settings" ? GLASS_SETTINGS : null),
+    setItem: () => {},
+    removeItem: () => {},
+  },
 });
 globalThis.MutationObserver = window.MutationObserver;
 globalThis.Image = class { set src(v) { setTimeout(() => this.onload && this.onload(), 0); } get naturalWidth() { return 2400; } get naturalHeight() { return 2900; } };
@@ -145,6 +160,7 @@ const react = {
 };
 
 // fetch 桩
+const diagBodies = [];
 const CFG = JSON.parse(process.argv[3] || DEFAULT_CONFIG);
 // 玻璃场景默认打开 isolatePanels —— 用来证明「liquid-glass 在场时 token
 // 兜底分支被跳过」，否则 --dsw-alias-bg-* 会把它那层玻璃压成不透明色块。
@@ -156,7 +172,10 @@ globalThis.fetch = async (url, opts) => {
   if (String(url).includes("/random")) {
     return { ok: true, text: async () => JSON.stringify({ ok: true, url: "https://setu.iw233.top/large/fake.jpg", via: "host" }) };
   }
-  if (String(url).includes("/diag")) return { ok: true, text: async () => JSON.stringify({ ok: true }) };
+  if (String(url).includes("/diag")) {
+    if (opts && opts.body) diagBodies.push(String(opts.body));
+    return { ok: true, text: async () => JSON.stringify({ ok: true }) };
+  }
   return { ok: false, status: 404, text: async () => "" };
 };
 
@@ -177,7 +196,12 @@ mod.apply({
   effect: () => {},
 });
 
-await new Promise(r => setTimeout(r, 300));
+// reportDiagnostics() 开头自带 sleep(1500)（等布局稳定），所以必须等到那条 POST
+// 真的发出来再断言体积 —— 否则是对空集合做 every()，永远"通过"，等于没测。
+for (let i = 0; i < 80 && diagBodies.length === 0; i++) {
+  await new Promise((r) => setTimeout(r, 100));
+}
+await new Promise((r) => setTimeout(r, 300));
 const css = styleEls.map(e => e.textContent).join("\n");
 // ---- 把控制坞真的渲染一次，点开「设置」，检查下拉框选项的可读性 ----
 function walk(node, out) {
@@ -295,6 +319,13 @@ console.log(JSON.stringify({
     isolatePanelsWasTrue: CFG.isolatePanels === true,
     videoPausedByPlugin: glass.paused === true,
     shaderContextLost: glass.contextLost === true,
+    // ---- 诊断载荷体积（回归：别把 285KB 的内联视频塞进去）----
+    diagPosts: diagBodies.length,
+    diagCaptured: diagBodies.length > 0,   // 必须为 true，否则下面的体积断言全是空集合
+    diagMaxBytes: diagBodies.length ? Math.max(...diagBodies.map((b) => b.length)) : 0,
+    diagBodyUnderHostLimit: diagBodies.every((b) => b.length <= 64 * 1024),
+    diagLeaksRawWallpaper: diagBodies.some((b) => b.includes("base64,AAAA")),
+    diagReportsWallpaperLength: diagBodies.some((b) => /"wallpaperLength":\s*\d+/.test(b)),
   },
 }, null, 2));
 

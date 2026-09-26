@@ -17,7 +17,7 @@ import { Readable } from "node:stream";
 export const name = "dsh-anime-theme";
 
 /** 与 package.json 保持一致的版本号（健康检查用）。 */
-const PLUGIN_VERSION = "1.5.2";
+const PLUGIN_VERSION = "1.5.3";
 
 /** 无必需服务：webServer 走可选用注入，缺失时不阻塞插件加载。 */
 export const inject = [];
@@ -293,11 +293,26 @@ function readJsonBody(request) {
   return new Promise((resolve, reject) => {
     let size = 0;
     const chunks = [];
+    let oversized = false;
     request.on("data", (chunk) => {
+      if (oversized) return;
       size += chunk.length;
       if (size > MAX_BODY_BYTES) {
-        reject(new Error("request body too large"));
-        request.destroy();
+        oversized = true;
+        chunks.length = 0;
+        reject(new Error("request body too large: " + size + " bytes > " + MAX_BODY_BYTES));
+        // 先回一个能看见的错误再断开。
+        // 直接 destroy() 的话对端只看到「连接被重置」，真正的原因（超限）就丢了 ——
+        // 客户端那次静默 catch 正是这样把症状藏了一个多小时的。
+        try {
+          sendJson(response, 413, {
+            ok: false,
+            error: "request body too large",
+            received: size,
+            limit: MAX_BODY_BYTES,
+          });
+        } catch { /* 忽略 */ }
+        try { request.destroy(); } catch { /* 忽略 */ }
         return;
       }
       chunks.push(chunk);
@@ -474,7 +489,12 @@ function createHandler() {
           return;
         }
         const body = await readJsonBody(request);
-        const saved = appendDiagnostic(body);
+        // 给每条记录打上插件版本与宿主侧时间戳：日志要能自己说明
+        // 「这是哪一版、什么时候写的」，否则事后根本分不清新旧。
+        const entry = body && typeof body === "object" && !Array.isArray(body)
+          ? Object.assign({ v: PLUGIN_VERSION, hostAt: new Date().toISOString() }, body)
+          : { v: PLUGIN_VERSION, hostAt: new Date().toISOString(), raw: body };
+        const saved = appendDiagnostic(entry);
         sendJson(response, saved ? 200 : 500, { ok: saved, path: DIAG_PATH });
         return;
       }

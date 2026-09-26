@@ -8,7 +8,7 @@
 ## 0. 最快路径
 
 ```bash
-node scripts/package.mjs                      # 打出 dist/dsh-anime-theme-1.5.2.zip
+node scripts/package.mjs                      # 打出 dist/dsh-anime-theme-1.5.3.zip
 # 打开 https://deepseek.stream/upload → 上传这个 zip
 ```
 
@@ -49,7 +49,7 @@ dsh-anime-theme/
 |------|-----------|
 | `id` | `dsh-anime-theme` |
 | `name` | `dsh-anime-theme` |
-| `version` | `1.5.2` |
+| `version` | `1.5.3` |
 | `description` | 一句话说明 |
 | `author` | `zxr2115-1` |
 | `platform` | `all`（可选 `all` / `desktop-exe` / `linux` / `web`） |
@@ -133,7 +133,7 @@ Get-Content $env:TEMP\dsh-check\dsh-anime-theme\plugin.json
 本插件的实际链接（各参数已 URL 编码）：
 
 ```
-dsh://plugin/install?id=dsh-anime-theme&name=%E4%BA%8C%E6%AC%A1%E5%85%83%E5%A3%81%E7%BA%B8%E4%B8%BB%E9%A2%98&version=1.5.2&repo=zxr2115-1/dsh-anime-theme&permissions=%E7%BD%91%E7%BB%9C%E8%AE%BF%E9%97%AE%2C%E6%9C%AC%E5%9C%B0%E5%AD%98%E5%82%A8
+dsh://plugin/install?id=dsh-anime-theme&name=%E4%BA%8C%E6%AC%A1%E5%85%83%E5%A3%81%E7%BA%B8%E4%B8%BB%E9%A2%98&version=1.5.3&repo=zxr2115-1/dsh-anime-theme&permissions=%E7%BD%91%E7%BB%9C%E8%AE%BF%E9%97%AE%2C%E6%9C%AC%E5%9C%B0%E5%AD%98%E5%82%A8
 ```
 
 协议格式：`dsh://plugin/install?id=&name=&version=&repo=&permissions=&downloadUrl=`。
@@ -177,7 +177,7 @@ setTimeout(() => document.body.removeChild(iframe), 2000);
 如果还想支持 `dsh plugin --profile web add dsh-anime-theme` 这种管路：
 
 ```bash
-git init && git add . && git commit -m "feat: 二次元壁纸主题 v1.5.2"
+git init && git add . && git commit -m "feat: 二次元壁纸主题 v1.5.3"
 git branch -M main
 git remote add origin https://github.com/zxr2115-1/dsh-anime-theme.git
 git push -u origin main
@@ -218,7 +218,7 @@ grep -rn "1\.4\.0" --include=*.js --include=*.json .
 
 ```bash
 node scripts/probe-css.mjs && node scripts/check-install.js
-git commit -am "release: v1.5.2" && git tag v1.5.2 && git push --follow-tags
+git commit -am "release: v1.5.3" && git tag v1.5.3 && git push --follow-tags
 node scripts/package.mjs          # 重新打包上传
 ```
 
@@ -329,6 +329,37 @@ rm -rf ~/.dsh/profiles/desktop/node_modules/.pnpm/dsh-anime-theme@* && pnpm inst
 **并且 `check-install.js` 已经补上这条检查**：它现在比对 `client.js` 的 **sha256**，
 副本是旧的会直接失败并打印修复命令 —— 早先它只查「链接存在」，正是这个疏忽让一个两周前的
 旧拷贝溜过了自检。凡是「校验安装是否生效」的脚本，都不能只看链路在不在，要比内容。
+
+---
+
+### ⑨ 诊断载荷别把别人的设置整个搬过来（64 KB 的隐性上限）
+
+宿主 `readJsonBody()` 有 `MAX_BODY_BYTES = 64 * 1024`。超了会被 `request.destroy()`
+直接掐断 —— **对端只看到「连接被重置」**，真正的原因（超限）完全丢失。
+
+实测踩到：为了让诊断能反映 liquid-glass 的接管状态，客户端把它的**整个设置对象**
+塞进了载荷，而里面 `wallpaper` 一个字段就是 **291,568 字符 / 285 KB** 的内联视频：
+
+```
+~/.dsh/liquid-glass-settings.json   = 292,022 B
+  wallpaper = "video:data:video/mp4;base64,AAAAIGZ0eXBp…"   (291,568 字符)
+```
+
+292 KB 对 64 KB，于是 `reportDiagnostics()` 从此每次都发不出去。更糟的是当时那句
+`catch (err) { /* 诊断失败静默 */ }` —— 症状只剩「诊断日志几十分钟不更新」，
+从外面完全查不出原因。**这条坑是我自己埋的，也是我自己踩的。**
+
+两条教训：
+
+1. **别把别人的状态整个搬进自己的载荷。** 只报判断问题需要的标量；大字段
+   （内联图片 / 视频 / base64）只报类型与长度。
+2. **静默 catch 是调试地狱。** 现在客户端有 `reportFailure()`：按 where+message
+   去重、带预算上限，但绝不静默；`boot()` 也改成每一步各自兜住 —— 早先的串行写法里，
+   取图那一环出问题会把诊断上报和**自动换图定时器**一起带走（后者静默失效是同一根因）。
+   宿主侧超限也从 `destroy()` 改成先回 `413` 并带上实际字节数与上限。
+
+> 兜底：载荷超过 48 KB 会自动降级成摘要，并留一条 `{"kind":"oversize","bytes":292547}`
+> —— 至少让你知道「它曾经太大」，而不是整条消失。
 
 ---
 

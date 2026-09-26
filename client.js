@@ -167,6 +167,63 @@
           return payload;
         }
 
+        /**
+         * 把客户端异常送回宿主，落到 diagnostics.jsonl。
+         *
+         * 渲染进程里抛的错，宿主日志和终端里一点都看不到 —— 上一轮
+         * reportDiagnostics() 被一个静默 catch 吞掉之后，「诊断日志几十分钟不更新」
+         * 这个症状根本无从查起。所以这里宁可吵一点：按 where+message 去重、
+         * 带预算上限，但绝不静默。
+         */
+        var failureBudget = 8;
+        var failureSeen = {};
+        function reportFailure(where, err) {
+          try {
+            var msg = String((err && err.message) || err || "");
+            var key = where + "|" + msg.slice(0, 100);
+            if (failureSeen[key] || failureBudget <= 0) return;
+            failureSeen[key] = 1;
+            failureBudget -= 1;
+            hostJson("/diag", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                kind: "client-error",
+                where: where,
+                message: msg,
+                stack: String((err && err.stack) || "").slice(0, 900),
+              }),
+            }).catch(function () { /* 连上报都失败就真没办法了 */ });
+          } catch (e) { /* 忽略 */ }
+        }
+
+        /**
+         * liquid-glass 设置的**摘要**。
+         *
+         * 千万不要直接把 readGlassSettings() 整个塞进诊断载荷：里面 wallpaper 是
+         * "video:data:video/mp4;base64,…" 形式的**内联视频**，实测 291,568 字符 / 285 KB，
+         * 而宿主 MAX_BODY_BYTES 只有 64 KB —— 超限会被 request.destroy() 掐断，
+         * 整条诊断都发不出去。这里只留判断问题需要的标量，wallpaper 只留长度与头部。
+         */
+        function glassSettingsSummary() {
+          var s = readGlassSettings();
+          if (!s) return null;
+          var out = {};
+          var keys = ["enabled", "l1Blur", "l1Opacity", "l1Border", "modalBlur", "l3MaskOpacity",
+                      "background", "bgBlur", "bgLiquidEnabled", "bgLiquidAmp", "bgLiquidScale",
+                      "bgLiquidSpeed", "vibrancy", "rippleAmp", "ior", "bulge", "dispersion"];
+          for (var i = 0; i < keys.length; i++) {
+            if (s[keys[i]] !== undefined) out[keys[i]] = s[keys[i]];
+          }
+          var w = s.wallpaper;
+          if (typeof w === "string") {
+            out.wallpaperKind = w.indexOf("data:") >= 0 ? "data-url" : (w.indexOf("video:") === 0 ? "video" : "url");
+            out.wallpaperLength = w.length;
+            out.wallpaperHead = w.slice(0, 24);
+          }
+          return out;
+        }
+
         async function loadConfig() {
           try {
             var payload = await hostJson("/config");
@@ -1641,22 +1698,48 @@
               glassVideoPaused: (function () {
                 try { var h = document.querySelector(GLASS_VIDEO_HOLDER_SELECTOR); var v = h && h.querySelector("video"); return v ? v.paused : null; } catch (e) { return null; }
               })(),
-              glassSettings: readGlassSettings(),
+              // 只报摘要 —— 完整设置里有 285 KB 的内联 base64 视频，会撑爆宿主 64KB 上限
+              glassSettings: glassSettingsSummary(),
               wallpaperUrl: store.url,
               containBox: containBox,
               config: { fit: store.config.fit, fillBlur: store.config.fillBlur, dim: store.config.dim, veil: store.config.veil },
             };
+            var body = JSON.stringify(payload);
+            // 兜底：万一哪天真把载荷撑爆了，至少留一条「我撑爆了」的记录，
+            // 而不是整条发不出去、外面什么都看不到。
+            if (body.length > 48000) {
+              body = JSON.stringify({
+                at: payload.at,
+                kind: "oversize",
+                note: "诊断载荷超过宿主 64KB 上限，已降级为摘要",
+                bytes: body.length,
+                themeKind: payload.themeKind,
+                glassActive: payload.glassActive,
+                glassTakeover: payload.glassTakeover,
+                config: payload.config,
+              });
+            }
+
             await hostJson("/diag", {
               method: "POST",
               headers: { "content-type": "application/json" },
-              body: JSON.stringify(payload),
+              body: body,
             });
-          } catch (err) { /* 诊断失败静默 */ }
+          } catch (err) { reportFailure("reportDiagnostics", err); }
         }
 
+        /**
+         * 启动流程。每一步各自兜住，**不能复用一个大 try** ——
+         * 早先写法是串行的「await refresh() 之后紧接 reportDiagnostics()」，
+         * 于是取图那一环一旦出问题，诊断上报和自动换图定时器就一起跑不到了，
+         * 而且外面完全看不出是为什么。
+         */
         async function boot() {
-          await loadConfig();
-          applyCss();
+          try { await loadConfig(); }
+          catch (err) { reportFailure("boot.loadConfig", err); }
+
+          try { applyCss(); }
+          catch (err) { reportFailure("boot.applyCss", err); }
           emit();
 
           try {
@@ -1666,23 +1749,40 @@
             });
           } catch (err) { /* 忽略 */ }
 
+          // 全局兜底：渲染进程里未捕获的异常也送回去，否则外面一点都看不到
+          try {
+            window.addEventListener("error", function (event) {
+              reportFailure("window.error", (event && (event.error || event.message)) || "unknown");
+            });
+            window.addEventListener("unhandledrejection", function (event) {
+              reportFailure("unhandledrejection", (event && event.reason) || "unknown");
+            });
+          } catch (err) { /* 忽略 */ }
+
           if (store.config.enabled) {
-            await refresh(false);
+            try { await refresh(false); }
+            catch (err) { reportFailure("boot.refresh", err); }
           }
-          reportDiagnostics();
-          scheduleAutoRefresh();
+
+          try { await reportDiagnostics(); }
+          catch (err) { reportFailure("boot.reportDiagnostics", err); }
+
+          try { scheduleAutoRefresh(); }
+          catch (err) { reportFailure("boot.scheduleAutoRefresh", err); }
         }
 
         function apply(ctx) {
           if (typeof document !== "undefined") {
+            // boot() 不 await（apply 不是 async），所以必须自带 catch，
+            // 否则一旦 reject 就是个 unhandled rejection，而且没人知道
+            var start = function () {
+              try { applyCss(); } catch (err) { reportFailure("apply.applyCss", err); }
+              boot().catch(function (err) { reportFailure("boot", err); });
+            };
             if (document.body) {
-              applyCss();
-              boot();
+              start();
             } else {
-              document.addEventListener("DOMContentLoaded", function () {
-                applyCss();
-                boot();
-              }, { once: true });
+              document.addEventListener("DOMContentLoaded", start, { once: true });
             }
           }
 

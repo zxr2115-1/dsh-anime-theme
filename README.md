@@ -54,7 +54,7 @@
 装了 **DeepSeek Harness 桌面端**的话，把下面这行粘进浏览器地址栏，客户端会被唤起并弹出安装确认：
 
 ```
-dsh://plugin/install?id=dsh-anime-theme&name=%E4%BA%8C%E6%AC%A1%E5%85%83%E5%A3%81%E7%BA%B8%E4%B8%BB%E9%A2%98&version=1.5.2&repo=zxr2115-1/dsh-anime-theme&permissions=%E7%BD%91%E7%BB%9C%E8%AE%BF%E9%97%AE%2C%E6%9C%AC%E5%9C%B0%E5%AD%98%E5%82%A8
+dsh://plugin/install?id=dsh-anime-theme&name=%E4%BA%8C%E6%AC%A1%E5%85%83%E5%A3%81%E7%BA%B8%E4%B8%BB%E9%A2%98&version=1.5.3&repo=zxr2115-1/dsh-anime-theme&permissions=%E7%BD%91%E7%BB%9C%E8%AE%BF%E9%97%AE%2C%E6%9C%AC%E5%9C%B0%E5%AD%98%E5%82%A8
 ```
 
 > ⚠ **GitHub 会过滤 `dsh:` 这类自定义协议的链接**，所以在 README 里做的按钮点不动 —— 上面是给你复制的。
@@ -473,7 +473,7 @@ $env:PROBE_DARK='1'; node scripts/probe-css.mjs   # 跑深色分支
 
 ```bash
 curl http://127.0.0.1:3080/dsh-anime-theme/api/health
-# {"ok":true,"name":"dsh-anime-theme","version":"1.5.2"}   ← 版本不对就是没传播
+# {"ok":true,"name":"dsh-anime-theme","version":"1.5.3"}   ← 版本不对就是没传播
 ```
 
 三种解法任选其一：
@@ -498,7 +498,7 @@ rm -rf ~/.dsh/profiles/desktop/node_modules/.pnpm/dsh-anime-theme@* && pnpm inst
 市场（`deepseek.stream`）只收 **`.zip`**，一条命令打出可直接上传的包：
 
 ```bash
-node scripts/package.mjs        # → dist/dsh-anime-theme-1.5.2.zip
+node scripts/package.mjs        # → dist/dsh-anime-theme-1.5.3.zip
 ```
 
 打包脚本会先自检（清单文件齐不齐、`plugin.json` 字段全不全、两处版本号一致不一致），
@@ -513,6 +513,23 @@ Windows 下 `.ps1` 要带 BOM 而 `.json` 不能带等）都写在 **[PUBLISH.md
 ---
 
 ## 📝 更新日志
+
+### v1.5.3
+- **修掉诊断上报整个失效的问题**（这是我自己在 1.5.0 引入的）：为了让诊断能反映接管状态，
+  当时把 liquid-glass 的**整个设置对象**塞进了载荷 —— 而里面 `wallpaper` 是
+  `video:data:video/mp4;base64,…` 形式的**内联视频**，实测 **291,568 字符 / 285 KB**，
+  而宿主 `MAX_BODY_BYTES` 只有 64 KB。超限被 `request.destroy()` 掐断，对端只看到
+  「连接被重置」，再被那句 `catch { /* 静默 */ }` 一吞，症状就只剩「诊断日志不再更新」。
+- 载荷改为 `glassSettingsSummary()`：只报标量，wallpaper 只留类型 / 长度 / 头部。
+- 新增**体积兜底**：超过 48 KB 自动降级成摘要，并如实记下
+  `{"kind":"oversize","bytes":292547}`，至少让你知道「它曾经太大」。
+- 新增 `reportFailure()`：把渲染进程的异常送回宿主落盘 —— 按 where+message 去重、
+  带预算上限，但**绝不静默**；并挂上 `window.error` / `unhandledrejection`。
+- `boot()` 改为**每一步各自兜住**：早先的串行写法里，取图那一环一旦出问题，会把
+  诊断上报和自动换图定时器一起带走（**自动换图静默失效**是同一个根因）。
+- 宿主 `readJsonBody()` 超限时先回 `413` 并带上实际字节数与上限，不再无声 `destroy()`。
+- `/api/diag` 每条记录自动打上插件版本与宿主侧时间戳。
+- 探针新增诊断载荷体积断言（含 `diagCaptured` 前置条件，避免对空集合做 `every()` 而假通过）。
 
 ### v1.5.2
 - **真正停掉 liquid-glass 的 WebGL 着色器**。上一版以为「藏画布 + pause 视频」就够，实测都不行：
