@@ -337,6 +337,18 @@
           return [GLASS_AMBIENT_SELECTOR, GLASS_WALLPAPER_SELECTOR];
         }
 
+        /** liquid-glass 的延迟重试定时器（用于补上异步挂载的 <video>）。 */
+        var glassTimers = [];
+        /** 是否已经排过一轮延迟重试，避免重复排。 */
+        var glassScheduled = false;
+        /** 盯住视频容器的 MutationObserver。 */
+        var glassObserver = null;
+        /**
+         * 已经成功摁停过一次视频。摁停之后就不必再排延迟重试了 ——
+         * 否则「最后一个定时器复位 glassScheduled 再调 applyCss」会无限自我重排。
+         */
+        var glassVideoDone = false;
+
         /**
          * 停掉 liquid-glass 那个隐藏 <video>。
          * CSS 的 display:none 已经足够让 Chromium 挂起解码器，这里是补一刀：
@@ -349,10 +361,73 @@
             var holder = document.querySelector(GLASS_VIDEO_HOLDER_SELECTOR);
             if (!holder) return;
             var vids = holder.querySelectorAll("video");
+            if (vids.length > 0) glassVideoDone = true;
             for (var i = 0; i < vids.length; i++) {
               try { vids[i].pause(); } catch (err2) { /* 忽略 */ }
             }
           } catch (err) { /* 忽略 */ }
+        }
+
+        /**
+         * liquid-glass 是【异步】挂载的，这是本插件最容易扑空的地方：
+         *
+         *   mount()                    同步建出 [data-dsh-glass-ambient]
+         *                              （画布 + 一个空的视频容器）
+         *   hydrateWallpaperOnBoot()   async —— 之后才把 <video> 塞进容器并 play()
+         *
+         * 而本插件的 applyCss() 跑在第三方插件的 apply 阶段，那时 <video> 还不存在，
+         * pauseGlassVideo() 必然扑空。偏偏它的 drawScene() 每帧把 video 当图像源读，
+         * 所以 CSS 的 display:none 拦不住解码 —— 必须真的 pause() 才行。
+         * 实测漏掉这一步时 videodecode 稳定在 4~5%。
+         *
+         * 这里补两层：容器上的 MutationObserver（够快）+ 几个延迟重来（兜住容器本身
+         * 都还没建出来的情况）。
+         */
+        function wireGlassWatch() {
+          if (!glassTakeover() || !glassActive()) return;
+          if (glassVideoDone) return;   // 已经摁停过，收工
+
+          // ① 盯住容器：<video> 一被塞进去就摁停，然后收工
+          try {
+            if (!glassObserver && typeof MutationObserver !== "undefined") {
+              var holder = document.querySelector(GLASS_VIDEO_HOLDER_SELECTOR);
+              if (holder) {
+                glassObserver = new MutationObserver(function () {
+                  pauseGlassVideo();
+                  if (holder.querySelector("video") && glassObserver) {
+                    try { glassObserver.disconnect(); } catch (err2) { /* 忽略 */ }
+                    glassObserver = null;
+                  }
+                });
+                glassObserver.observe(holder, { childList: true, subtree: true });
+              }
+            }
+          } catch (err) { /* 忽略 */ }
+
+          // ② 延迟重来：applyCss 会重新判 glassActive() 并再摁一次视频
+          if (glassScheduled) return;
+          glassScheduled = true;
+          var delays = [400, 1200, 3000, 7000, 15000];
+          for (var i = 0; i < delays.length; i++) {
+            (function (ms, last) {
+              glassTimers.push(setTimeout(function () {
+                if (last) glassScheduled = false;
+                applyCss();
+              }, ms));
+            })(delays[i], i === delays.length - 1);
+          }
+        }
+
+        /** 收摊：断开观察器与定时器（关插件 / 卸载时用）。 */
+        function unwireGlassWatch() {
+          if (glassObserver) {
+            try { glassObserver.disconnect(); } catch (err) { /* 忽略 */ }
+            glassObserver = null;
+          }
+          for (var i = 0; i < glassTimers.length; i++) clearTimeout(glassTimers[i]);
+          glassTimers = [];
+          glassScheduled = false;
+          glassVideoDone = false;
         }
 
         /**
@@ -628,9 +703,11 @@
           if (layer) layer.style.display = active ? "block" : "none";
 
           pauseGlassVideo();
+          wireGlassWatch();
         }
 
         function teardown() {
+          unwireGlassWatch();
           var style = document.getElementById(STYLE_ID);
           if (style && style.parentNode) style.parentNode.removeChild(style);
           var layer = document.getElementById(FALLBACK_BG_ID);

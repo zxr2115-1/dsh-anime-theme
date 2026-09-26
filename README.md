@@ -54,7 +54,7 @@
 装了 **DeepSeek Harness 桌面端**的话，把下面这行粘进浏览器地址栏，客户端会被唤起并弹出安装确认：
 
 ```
-dsh://plugin/install?id=dsh-anime-theme&name=%E4%BA%8C%E6%AC%A1%E5%85%83%E5%A3%81%E7%BA%B8%E4%B8%BB%E9%A2%98&version=1.5.0&repo=zxr2115-1/dsh-anime-theme&permissions=%E7%BD%91%E7%BB%9C%E8%AE%BF%E9%97%AE%2C%E6%9C%AC%E5%9C%B0%E5%AD%98%E5%82%A8
+dsh://plugin/install?id=dsh-anime-theme&name=%E4%BA%8C%E6%AC%A1%E5%85%83%E5%A3%81%E7%BA%B8%E4%B8%BB%E9%A2%98&version=1.5.1&repo=zxr2115-1/dsh-anime-theme&permissions=%E7%BD%91%E7%BB%9C%E8%AE%BF%E9%97%AE%2C%E6%9C%AC%E5%9C%B0%E5%AD%98%E5%82%A8
 ```
 
 > ⚠ **GitHub 会过滤 `dsh:` 这类自定义协议的链接**，所以在 README 里做的按钮点不动 —— 上面是给你复制的。
@@ -473,7 +473,7 @@ $env:PROBE_DARK='1'; node scripts/probe-css.mjs   # 跑深色分支
 
 ```bash
 curl http://127.0.0.1:3080/dsh-anime-theme/api/health
-# {"ok":true,"name":"dsh-anime-theme","version":"1.5.0"}   ← 版本不对就是没传播
+# {"ok":true,"name":"dsh-anime-theme","version":"1.5.1"}   ← 版本不对就是没传播
 ```
 
 三种解法任选其一：
@@ -498,7 +498,7 @@ rm -rf ~/.dsh/profiles/desktop/node_modules/.pnpm/dsh-anime-theme@* && pnpm inst
 市场（`deepseek.stream`）只收 **`.zip`**，一条命令打出可直接上传的包：
 
 ```bash
-node scripts/package.mjs        # → dist/dsh-anime-theme-1.5.0.zip
+node scripts/package.mjs        # → dist/dsh-anime-theme-1.5.1.zip
 ```
 
 打包脚本会先自检（清单文件齐不齐、`plugin.json` 字段全不全、两处版本号一致不一致），
@@ -513,6 +513,17 @@ Windows 下 `.ps1` 要带 BOM 而 `.json` 不能带等）都写在 **[PUBLISH.md
 ---
 
 ## 📝 更新日志
+
+### v1.5.1
+- **修掉视频解码的时序漏洞**：liquid-glass 的 `<video>` 是在 `hydrateWallpaperOnBoot()`
+  里**异步**创建的，而 `applyCss()` 跑在插件 apply 阶段 —— 那时它还不存在，
+  `pauseGlassVideo()` 必然扑空。偏偏它的 `drawScene()` 每帧把 video 当图像源读，
+  所以 CSS 的 `display:none` 拦不住解码，实测 `videodecode` 一直挂在 4~5%。
+  现在补了两层兜底：视频容器上的 `MutationObserver`（`<video>` 一出现就摁停）
+  + 5 个延迟重来（兜住容器本身还没建出来的情况）。
+- 顺带修掉一个自我重排的死循环：最后一个重试定时器复位标记后又调 `applyCss()`，
+  会再排一轮、永不停止（探针跑不完就是它）。改用「已摁停就不再排」的标记收口。
+- `scripts/probe-css.mjs` 改为显式 `process.exit(0)`，不再被挂起的定时器拖住。
 
 ### v1.5.0
 - **适配 DSH 0.1.6 的新主题引擎** `@deepseek-ai/dsh-client-ui-liquid-glass` 2.x：

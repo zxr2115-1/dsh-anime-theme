@@ -284,3 +284,7 @@ console.log(JSON.stringify({
     videoPausedByPlugin: glass.paused === true,
   },
 }, null, 2));
+
+// client.js 会为 liquid-glass 的异步挂载排几个延迟重试（最长 15s），
+// 那些挂起的定时器会把 Node 的 event loop 拖住 —— 显式退出，让探针可测。
+process.exit(0);
