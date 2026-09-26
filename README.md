@@ -458,7 +458,19 @@ $env:PROBE_DARK='1'; node scripts/probe-css.mjs   # 跑深色分支
 | 界面打不开 | 插件导致前端故障 | DSH Desktop 用 `Harness → 以安全模式重启…` 屏蔽第三方插件 |
 | **改完插件、重启后行为还是旧的** | pnpm 把 `file:` 依赖**复制**进 `.pnpm` store，改源目录不会传播 | 见下方「改了却不生效」 |
 
-### 改了却不生效？（pnpm 的 `file:` 依赖是复制品）
+### 改了却不生效？（一条命令解决）
+
+```bash
+npm run sync          # 同步到本机所有副本 + 逐字节校验
+npm run sync:dry      # 只看会动哪些地方，不写盘
+```
+
+它会自动发现目标（`~/.dsh/plugins/<name>` 与每个 profile 的 `node_modules` 入口，
+Junction 会先解析到真身），镜像后逐个核对 sha256，不一致就报错退出。
+
+> 下面这些是它解决的原理，遇到问题时可以对照排查。
+
+### 原理：pnpm 的 `file:` 依赖是复制品
 
 `~/.dsh/plugins/dsh-anime-theme` 更新之后，profile 里那份**不会跟着变**：
 

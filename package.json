@@ -64,7 +64,9 @@
     "harness:check": "node --check index.js && node --check client.js",
     "probe": "node scripts/probe-css.mjs",
     "package": "node scripts/package.mjs",
-    "check": "node scripts/check-install.js"
+    "check": "node scripts/check-install.js",
+    "sync": "node scripts/sync-local.mjs",
+    "sync:dry": "node scripts/sync-local.mjs --dry"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"

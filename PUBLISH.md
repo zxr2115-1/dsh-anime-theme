@@ -330,6 +330,16 @@ rm -rf ~/.dsh/profiles/desktop/node_modules/.pnpm/dsh-anime-theme@* && pnpm inst
 副本是旧的会直接失败并打印修复命令 —— 早先它只查「链接存在」，正是这个疏忽让一个两周前的
 旧拷贝溜过了自检。凡是「校验安装是否生效」的脚本，都不能只看链路在不在，要比内容。
 
+> **补充（install.ps1 的顺序坑）**：安装脚本原本是「先建 Junction，再 `pnpm install`」，
+> 而 pnpm 会直接接管 `node_modules/<name>` 这个位置 —— 等于把刚建好的
+> 「实时软链」覆盖成它自己的 store 副本，所谓实时根本没生效。已改成**先装依赖、后建软链**。
+> 一条通用规律：**任何对 `node_modules` 的手工介入，都要放在包管理器之后。**
+
+> **一键同步**：仓库里新增了 `scripts/sync-local.mjs`（`npm run sync`），
+> 自动发现 `~/.dsh/plugins/<name>` 与各 profile 的 `node_modules` 入口
+> （Junction 先解析到真身），镜像后逐字节校验。核验清单**刻意不含 `package.json`** ——
+> 桌面端 cleanLegacyState 会故意剥掉它的 `dsh.bundle`，列进去只会恒报假阳性。
+
 ---
 
 ### ⑨ 诊断载荷别把别人的设置整个搬过来（64 KB 的隐性上限）

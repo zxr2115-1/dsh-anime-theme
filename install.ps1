@@ -171,7 +171,27 @@ foreach ($profileDir in $profileDirs) {
         Write-Ok 'cordis.patch.yml 已包含挂载项，跳过'
     }
 
-    # 6. Junction 软链
+    # 6. pnpm install 装依赖
+    #
+    # 注意顺序：必须【先】pnpm install，【再】建 Junction。
+    # pnpm 对 file: 依赖是把包复制进自己的 store
+    # （node_modules/.pnpm/<name>@file+.../node_modules/<name>），
+    # 它会直接接管 node_modules/<name> 这个位置 —— 所以先建 Junction 再装依赖，
+    # Junction 会被 pnpm 覆盖掉，所谓「实时软链」根本没生效，
+    # 之后改 $destDir 里的文件也不会传播。这个顺序坑踩过一次。
+    Write-Step "[$profileKey] 安装依赖"
+    Push-Location $profileDir
+    try {
+        pnpm install
+        if ($LASTEXITCODE -ne 0) { Write-Warn "pnpm install 退出码 $LASTEXITCODE" }
+        else { Write-Ok '依赖安装完成' }
+    } catch {
+        Write-Warn "pnpm 提示：$($_.Exception.Message)"
+    } finally {
+        Pop-Location
+    }
+
+    # 7. Junction 软链（放在 pnpm install 之后，否则会被它覆盖）
     Write-Step "[$profileKey] 建立 node_modules Junction"
     $nmDir = Join-Path $profileDir 'node_modules'
     if (-not (Test-Path $nmDir)) { New-Item -ItemType Directory -Path $nmDir -Force | Out-Null }
@@ -185,19 +205,10 @@ foreach ($profileDir in $profileDirs) {
         }
     }
     cmd.exe /c "mklink /J `"$nmEntry`" `"$destDir`"" 2>$null | Out-Null
-    if (Test-Path $nmEntry) { Write-Ok 'Junction 实时软链就绪' } else { Write-Warn 'Junction 建立失败，将依赖 pnpm install 的 file: 拷贝' }
-
-    # 7. pnpm install
-    Write-Step "[$profileKey] 安装依赖"
-    Push-Location $profileDir
-    try {
-        pnpm install
-        if ($LASTEXITCODE -ne 0) { Write-Warn "pnpm install 退出码 $LASTEXITCODE（已存在 Junction，通常不影响使用）" }
-        else { Write-Ok '依赖安装完成' }
-    } catch {
-        Write-Warn "pnpm 提示：$($_.Exception.Message)"
-    } finally {
-        Pop-Location
+    if (Test-Path $nmEntry) {
+        Write-Ok 'Junction 实时软链就绪（改 $destDir 立即生效，无需 pnpm install）'
+    } else {
+        Write-Warn "Junction 建立失败（可能没有权限）。退化为 pnpm 的 file: 拷贝 —— 此后改 $destDir 不会传播，需要跑 pnpm install --force，或用 scripts/sync-local.mjs 同步"
     }
 }
 
