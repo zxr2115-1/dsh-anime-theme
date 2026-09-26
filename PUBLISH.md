@@ -297,6 +297,39 @@ PowerShell 5.1 默认按 ANSI/GBK 读 `.ps1`，无 BOM 的中文注释和路径�
 > 定位提示：拿不准就用 `process.argv` 之外的手段直接搜字符串 ——
 > `Get-Content -Raw lib/client.js` 然后 `indexOf`，比读源码可靠。
 
+### ⑧ pnpm 把 `file:` 依赖**复制**进 store —— 改源目录不会传播（最隐蔽的一个）
+
+`~/.dsh/plugins/<id>` 更新之后，profile 里的那份**不会跟着变**：
+
+```
+~/.dsh/profiles/<p>/node_modules/dsh-anime-theme
+  → junction → node_modules/.pnpm/dsh-anime-theme@file+..+..+plugins+dsh-anime-theme/node_modules/dsh-anime-theme
+````
+
+**`.pnpm` 里那份是复制品。** 结果就是：文件改了、`package.json` 版本号也对，宿主照样跑旧代码 ——
+而且**重启也没用**，因为磁盘上它读的那份本来就是旧的。
+
+实测踩到：源文件 09/26 12:54 更新，`.pnpm` 副本还停在 09/13 08:08；
+重启桌面端后 `/api/health` 仍返回 `1.4.0`，配置里也没有新加的 `glassTakeover` 键。
+
+最快判别（宿主半会如实报自己的版本）：
+
+```bash
+curl http://127.0.0.1:3080/dsh-anime-theme/api/health
+```
+
+三种修法：
+
+```bash
+cd ~/.dsh/profiles/desktop && pnpm install --force          # A. 正道
+rm -rf ~/.dsh/profiles/desktop/node_modules/.pnpm/dsh-anime-theme@* && pnpm install   # B.
+# C. 直接把 plugins/<id>/ 的内容镜像进 .pnpm/.../node_modules/<id>/  （零网络依赖）
+```
+
+**并且 `check-install.js` 已经补上这条检查**：它现在比对 `client.js` 的 **sha256**，
+副本是旧的会直接失败并打印修复命令 —— 早先它只查「链接存在」，正是这个疏忽让一个两周前的
+旧拷贝溜过了自检。凡是「校验安装是否生效」的脚本，都不能只看链路在不在，要比内容。
+
 ---
 
 ## 8. 一句话总览

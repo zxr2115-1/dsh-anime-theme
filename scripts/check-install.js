@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 /**
  * dsh-anime-theme 安装自检器
- * 真实模拟模块解析：软链可达 + package.json 合法 + dsh.bundle 契约齐备。
+ * 真实模拟模块解析：软链可达 + package.json 合法 + dsh.bundle 契约齐备
+ * + profile 里的副本确实是最新的。
  * 退出码非 0 表示安装不完整。
  */
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -16,6 +18,20 @@ const pluginDir = join(dshRoot, "plugins", PLUGIN);
 
 const failures = [];
 const notes = [];
+
+/** 文件内容的 sha256，读不到返回 null。 */
+function digest(file) {
+  try { return createHash("sha256").update(readFileSync(file)).digest("hex"); }
+  catch { return null; }
+}
+
+/** 从某个插件目录的 index.js 里抠出 PLUGIN_VERSION。 */
+function versionOf(dir) {
+  try {
+    const m = /PLUGIN_VERSION\s*=\s*"([^"]+)"/.exec(readFileSync(join(dir, "index.js"), "utf8"));
+    return m ? m[1] : null;
+  } catch { return null; }
+}
 
 function ok(message) { console.log("  [OK] " + message); }
 function fail(message) { failures.push(message); console.log("  [X]  " + message); }
@@ -105,10 +121,32 @@ for (const profile of profiles) {
   }
 
   const nmEntry = join(profileDir, "node_modules", PLUGIN);
-  if (existsSync(nmEntry)) {
-    ok("node_modules 链接存在: " + nmEntry);
-  } else {
+  if (!existsSync(nmEntry)) {
     fail("node_modules 链接缺失: " + nmEntry + "（运行 pnpm install 或安装脚本）");
+  } else {
+    // ── 链路存在 ≠ 内容是最新的 ────────────────────────────────
+    // pnpm 对 file: 依赖的处理是【复制进自己的 store】：
+    //   profiles/<p>/node_modules/dsh-anime-theme
+    //     -> junction -> node_modules/.pnpm/dsh-anime-theme@file+..+.../node_modules/dsh-anime-theme
+    // 所以改了 plugins/<PLUGIN> 之后，profile 里那份【不会】自动跟着变。
+    // 只查「链接存在」会放过一个两周前的旧拷贝，宿主照样跑旧代码 —— 必须比内容。
+    const srcHash = digest(join(pluginDir, "client.js"));
+    const dstHash = digest(join(nmEntry, "client.js"));
+    const srcVer = versionOf(pluginDir);
+    const dstVer = versionOf(nmEntry);
+
+    if (srcHash && dstHash && srcHash !== dstHash) {
+      fail(
+        "profile 里是旧副本（源 v" + srcVer + "，副本 v" + dstVer + "）：" + nmEntry +
+        " —— pnpm 把 file: 依赖复制进 store，改源目录不会传播。" +
+        "在该 profile 目录下跑 pnpm install --force，" +
+        "或删掉 node_modules/.pnpm/" + PLUGIN + "@* 后重装"
+      );
+    } else if (!dstHash) {
+      fail("profile 副本里读不到 client.js: " + nmEntry);
+    } else {
+      ok("node_modules 副本与插件目录一致 (v" + dstVer + ")");
+    }
   }
 
   wired += 1;

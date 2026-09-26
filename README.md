@@ -456,6 +456,40 @@ $env:PROBE_DARK='1'; node scripts/probe-css.mjs   # 跑深色分支
 | 图片 403 | 直连链路防盗链 | 换回 `CDNsetu` / `CDNcat`，或确认走的是宿主中继 |
 | `pnpm install` 报 `ERR_PNPM_FETCH_404` | 某个本地插件的依赖被写成 `"*"`，pnpm 会去 npm registry 找它 | 本地插件一律写成 `"file:../../plugins/<id>"`，重跑 `pnpm install` 即可 |
 | 界面打不开 | 插件导致前端故障 | DSH Desktop 用 `Harness → 以安全模式重启…` 屏蔽第三方插件 |
+| **改完插件、重启后行为还是旧的** | pnpm 把 `file:` 依赖**复制**进 `.pnpm` store，改源目录不会传播 | 见下方「改了却不生效」 |
+
+### 改了却不生效？（pnpm 的 `file:` 依赖是复制品）
+
+`~/.dsh/plugins/dsh-anime-theme` 更新之后，profile 里那份**不会跟着变**：
+
+```
+~/.dsh/profiles/<p>/node_modules/dsh-anime-theme
+  → junction → node_modules/.pnpm/dsh-anime-theme@file+..+..+plugins+dsh-anime-theme/node_modules/dsh-anime-theme
+````
+
+**`.pnpm` 里那份是复制品。** 文件明明改了、`package.json` 版本号也对了，宿主照样跑旧代码。
+
+最快确认方式（宿主半会报自己的真实版本）：
+
+```bash
+curl http://127.0.0.1:3080/dsh-anime-theme/api/health
+# {"ok":true,"name":"dsh-anime-theme","version":"1.5.0"}   ← 版本不对就是没传播
+```
+
+三种解法任选其一：
+
+```bash
+# A. 正道：让 pnpm 重新复制
+cd ~/.dsh/profiles/desktop && pnpm install --force
+
+# B. 删掉缓存的 store 条目再装
+rm -rf ~/.dsh/profiles/desktop/node_modules/.pnpm/dsh-anime-theme@* && pnpm install
+
+# C. 零网络依赖：直接把新内容镜像进 store（网络不好时最实用）
+#    把 plugins/dsh-anime-theme/ 的内容覆盖到上面那个 .pnpm 目录
+```
+
+> `node scripts/check-install.js` 现在会比对**内容 sha256**，副本是旧的会直接报错并给出上面的命令。
 
 ---
 
