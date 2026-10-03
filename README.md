@@ -355,6 +355,21 @@ DSH 0.1.6 把内置主题引擎换成了 `@deepseek-ai/dsh-client-ui-liquid-glas
 画布再把它的帧当纹理渲染成壁纸。所以两套壁纸会叠在一起，而且白烧一路解码器和一份显存
 —— 这是「用了动态壁纸后桌面端很卡」的主要来源之一。
 
+> **2026-10-03 实测补充（0.1.6-max）**：官方在 `0.1.6-re2-community` 这个构建里
+> 把 `dsh-client-ui-liquid-glass` **整个移除了** —— `runtime/node_modules/@deepseek-ai` 下
+> 315 个包、各包的 `lib/client.js` 产物里，**没有任何一个再提到 `glass`**。
+> 顶替它的是 `@deepseek-ai/dsh-client-ui-theme` 0.1.6-alpha.2，只负责明暗三态、字号与
+> `settings.theme` 那一行，**不再有任何壁纸层**。
+>
+> 好消息是上面这套接管逻辑**不需要改**：引擎不在时 `themeKind()` 返回 `"none"`、
+> `glassActive()` 恒为 `false`，所有相关路径都以它为闸门自动早退 ——
+> `wireGlassWatch()` 第 501 行直接 `return`（不建 observer、不排定时器），
+> `killGlassShader()` / `pauseGlassVideo()` 同理，设置里那行「宿主玻璃层」也不渲染。
+> 实测诊断日志自证：`themeKind:"none"`、`glassActive:false`、
+> `appliedAfterStyle` 里壁纸正常铺满、`bodyHasDarkAttr:true`。
+
+> 顺带一提：GSH 那个社区版标题写的就是「**无壁纸插件版**」—— 0.1.6-max 起官方确实不带壁纸了，
+> 本插件从「与宿主主题共存」变成了**唯一的背景来源**。
 检测到 `liquid-glass` 在场时，本插件会：
 
 - 藏掉 `[data-dsh-glass-ambient]`（画布 + 隐藏视频容器），让你的壁纸成为唯一背景；
@@ -569,6 +584,8 @@ Windows 下 `.ps1` 要带 BOM 而 `.json` 不能带等）都写在 **[PUBLISH.md
 - `scripts/probe-css.mjs` 改为显式 `process.exit(0)`，不再被挂起的定时器拖住。
 
 ### v1.5.0
+- **已在 DSH 0.1.6-max（`0.1.6-re2-community`）上实测通过**：宿主移除液态玻璃引擎后，
+  全部液玻相关路径以 `glassActive()` 为闸门自动早退，**无需改动即可正常工作**（详见上文共存章节）。
 - **适配 DSH 0.1.6 的新主题引擎** `@deepseek-ai/dsh-client-ui-liquid-glass` 2.x：
   旧版只认 `[data-dsh-theme-bg="true"]`，在 0.1.6 上必然落空，会让两套壁纸叠在一起。
 - 新增「宿主玻璃层：接管 / 不接管」开关；接管时停掉隐藏视频的解码，显著降低 GPU 占用。
