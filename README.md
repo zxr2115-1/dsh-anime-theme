@@ -525,7 +525,7 @@ rm -rf ~/.dsh/profiles/desktop/node_modules/.pnpm/dsh-anime-theme@* && pnpm inst
 市场（`deepseek.stream`）只收 **`.zip`**，一条命令打出可直接上传的包：
 
 ```bash
-node scripts/package.mjs        # → dist/dsh-anime-theme-1.5.3.zip
+node scripts/package.mjs        # → dist/dsh-anime-theme-1.5.4.zip
 ```
 
 打包脚本会先自检（清单文件齐不齐、`plugin.json` 字段全不全、两处版本号一致不一致），
@@ -541,6 +541,15 @@ Windows 下 `.ps1` 要带 BOM 而 `.json` 不能带等）都写在 **[PUBLISH.md
 
 ## 📝 更新日志
 
+### v1.5.4
+- **修复 0.1.6-max 上「控制坞正常但背景不显示」** —— 宿主移除液态玻璃引擎后，面板底色再没人调透，`AppFrame` 的 `background:var(--dsw-alias-bg-base)`（且带 `position:relative`）建了个层叠上下文，把本插件 `z-index:-1` 的壁纸层整片盖死。
+- 现在**只要没有宿主主题层**（`dsh-skin` 与 `liquid-glass` 都不在）就由本插件接管 `--dsw-alias-bg-*` 这组 token，不再要求先手动打开「分隔面板」。
+- `surfaceStrength()` 改为给出半透明值（`isolatePanels` 关 = 壁纸更清楚 / 开 = 正文更清楚），原先默认的 0.92 近乎不透明，即使覆盖了也等于没透。
+- **侧栏还得单独补一刀**：`._0TJJea_sidebarCol` 与侧栏根的 `.AehNHG_root` 用的是**另一个** token（`--dsw-specific-sidebar-fill`），不一起调透的话正文透了、侧栏还是一条不透明的板子。已一并纳入覆盖列表。
+- 顺手排掉一个假警告：`panelAlphaOf()` 原先无条件去读 `dsh.ui-liquid-glass.settings`。宿主把引擎删了，那份设置却还留在 localStorage 里（本机 `l1Opacity=0.1`），于是它永远报 0.1、永远弹「面板几乎全透」，而提示让你去的「设置 → 主题 → 液态玻璃」**这个页面已经不存在了**，按提示根本修不了。现在没有宿主层时直接报我们实际生效的值。
+- `themeKind() === "none"` 这条分支原先在警告里没有对应文案（会落到 dsh-skin 那支，说的还是错的），已补齐三支。
+- 控制坞里的「毛玻璃面板」改名为「面板底色」，选项文案由「已开启/已关闭」改为「更实 · 正文优先 / 更透 · 壁纸优先」—— 它现在管的是面板压实程度，原名会让人以为还是液玻开关。
+- 验证方式：把 `dsh-client-ui-layout` 的 `AppFrame` 规则与 `dsh-client-ui-theme` 的 token 定义抄进测试页做 A/B 对比 —— 无覆盖时整页纯白（复现故障），有覆盖时壁纸正常透出。
 ### v1.5.3
 - **修掉诊断上报整个失效的问题**（这是我自己在 1.5.0 引入的）：为了让诊断能反映接管状态，
   当时把 liquid-glass 的**整个设置对象**塞进了载荷 —— 而里面 `wallpaper` 是

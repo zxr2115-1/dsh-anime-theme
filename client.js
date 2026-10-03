@@ -354,6 +354,12 @@
          *  老版看 dsh-skin 的 dialogAlpha。
          */
         function panelAlphaOf() {
+          // 没有宿主主题层时，面板透明度是【我们自己】接管的（见 buildCss 第 3 段），
+          // 所以必须报我们实际用的值。
+          // 以前这里无条件去读 dsh.ui-liquid-glass.settings —— 宿主早就把引擎删了，
+          // 那份设置还留在 localStorage 里（本机是 l1Opacity=0.1），于是它一直报 0.1、
+          // 一直弹「面板几乎全透」，而提示里让去的页面已经不存在了。
+          if (!hostLayer() && !glassActive()) return surfaceStrength().base;
           var lg = readGlassSettings();
           if (lg && typeof lg.l1Opacity === "number") return lg.l1Opacity;
           return dialogAlphaOf();
@@ -593,14 +599,24 @@
           } catch (err) { /* 忽略 */ }
         }
 
+        /**
+         * 面板底色的不透明度。只在【没有宿主主题层】时用到 —— 那种情况下
+         * 面板的透明度没人管，全由 --dsw-alias-bg-* 这组 token 决定，
+         * 而 layout 的 AppFrame 正是 `background: var(--dsw-alias-bg-base)`
+         * 且带 position:relative，会建一个层叠上下文，把本插件 z-index:-1
+         * 的壁纸层整片盖死。所以这里必须给半透明值，否则壁纸根本看不见。
+         *
+         * isolatePanels 只决定压实到什么程度：
+         *   关（默认）= 壁纸更清楚；开 = 正文更清楚。
+         */
         function surfaceStrength() {
-          var glass = store.config.isolatePanels === true;
+          var solid = store.config.isolatePanels === true;
           return {
-            base: glass ? 0.30 : 0.92,
-            layer1: glass ? 0.42 : 0.96,
-            layer2: glass ? 0.50 : 0.97,
-            layer3: glass ? 0.58 : 0.98,
-            overlay: glass ? 0.72 : 0.99
+            base: solid ? 0.62 : 0.30,
+            layer1: solid ? 0.72 : 0.42,
+            layer2: solid ? 0.78 : 0.50,
+            layer3: solid ? 0.84 : 0.58,
+            overlay: solid ? 0.92 : 0.72
           };
         }
 
@@ -777,21 +793,27 @@
             rule('html[data-dsh-anime-dark="1"] ' + selfSelector, DARK_RGB, DARK_BASE, darkFillDim, darkDim);
           }
 
-          // ── 3. panel token 不碰 ────────────────────────────────────
-          //      面板透明度归 dsh-skin 的 themeAlpha / dialogAlpha（走
-          //      ctx.theme.overrideTokens），再用 !important 去压会踩坏它的滑杆。
-          //      isolatePanels 仅在完全没装 dsh-skin 时才生效。
-          //  liquid-glass 会用 ctx.theme.overrideTokens 把这一组 token 全设成
-          //  transparent（LIQUID_GLASS_TOKEN_OVERRIDES），玻璃感就靠它。
-          //  我们再拿 !important 盖上不透明的底色，会把它整层压平、
-          //  面板变成两套风格打架 —— 所以它在就一律不碰。
-          if (!hostLayer() && !glassActive() && store.config.isolatePanels === true) {
+          // ── 3. 有宿主主题层就一律不碰这组 token ────────────────────
+          //      dsh-skin 走 themeAlpha / dialogAlpha；liquid-glass 走
+          //      ctx.theme.overrideTokens 把它们设成 transparent。
+          //      我们再拿 !important 压上去会踩坏它的滑杆、把玻璃层整片压平，
+          //      所以它们在就一律不碰。
+          //
+          //      但【两者都不在】时必须由我们接管：DSH 0.1.6-max 起官方把
+          //      liquid-glass 整个移除了，再没人把 token 调透，AppFrame 就带着
+          //      不透明的 --dsw-alias-bg-base 把壁纸整片盖死
+          //      （症状：控制坞一切正常，背景却全是白/黑）。
+          if (!hostLayer() && !glassActive()) {
             var strength = surfaceStrength();
             var selectors = ["body", "body[data-ds-dark-theme]"];
             for (var i = 0; i < selectors.length; i++) {
               var tint = selectors[i].indexOf("dark") >= 0 ? "12,14,20" : "255,255,255";
               lines.push(selectors[i] + "{");
               lines.push("--dsw-alias-bg-base:rgba(" + tint + "," + strength.base + ") !important;");
+              // 侧栏底色走的是【另一个】 token：layout 的 .sidebarCol 与 sidebar 的
+              // .root 都用 --dsw-specific-sidebar-fill。不一起调透的话，
+              // 即使 content 区透了，侧栏照样是一块不透明的板子。
+              lines.push("--dsw-specific-sidebar-fill:rgba(" + tint + "," + strength.layer1 + ") !important;");
               lines.push("--dsw-alias-bg-layer-1:rgba(" + tint + "," + strength.layer1 + ") !important;");
               lines.push("--dsw-alias-bg-layer-2:rgba(" + tint + "," + strength.layer2 + ") !important;");
               lines.push("--dsw-alias-bg-layer-3:rgba(" + tint + "," + strength.layer3 + ") !important;");
@@ -1452,14 +1474,14 @@
                 react.createElement(
                   "div",
                   { key: "glass", style: rowStyle },
-                  react.createElement("span", { style: labelStyle }, "毛玻璃面板"),
+                  react.createElement("span", { style: labelStyle }, "面板底色"),
                   react.createElement(
                     "button",
                     {
                       style: chipStyle(dark, config.isolatePanels === true),
                       onClick: function () { saveConfig({ isolatePanels: !config.isolatePanels }).then(applyCss); }
                     },
-                    config.isolatePanels ? "已开启" : "已关闭"
+                    config.isolatePanels ? "更实 · 正文优先" : "更透 · 壁纸优先"
                   )
                 )
               );
@@ -1491,8 +1513,11 @@
                       themeKindNow === "liquid-glass"
                         ? "面板几乎全透（liquid-glass l1Opacity=" + panelAlphaOf() + "），正文会直接压在壁纸上导致看不清。" +
                           "到「设置 → 主题 → 液态玻璃」把「一层基底雾面玻璃」的不透明度拉到 0.5 以上即可。"
-                        : "对话栏几乎全透（dsh-skin dialogAlpha=" + panelAlphaOf() + "），正文会直接压在壁纸上导致看不清。" +
-                          "到「设置 → 主题」把「对话栏透明度」拉到 0.6 以上即可（侧栏/设置面板不受影响）。"
+                        : themeKindNow === "dsh-skin"
+                          ? "对话栏几乎全透（dsh-skin dialogAlpha=" + panelAlphaOf() + "），正文会直接压在壁纸上导致看不清。" +
+                            "到「设置 → 主题」把「对话栏透明度」拉到 0.6 以上即可（侧栏/设置面板不受影响）。"
+                          : "面板底色几乎全透（" + panelAlphaOf().toFixed(2) + "），正文会直接压在壁纸上导致看不清。" +
+                            "在下面把「面板底色」切到「更实」即可。"
                     )
                   : null,
                 snap.downgraded

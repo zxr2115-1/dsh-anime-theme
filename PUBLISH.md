@@ -8,7 +8,7 @@
 ## 0. 最快路径
 
 ```bash
-node scripts/package.mjs                      # 打出 dist/dsh-anime-theme-1.5.3.zip
+node scripts/package.mjs                      # 打出 dist/dsh-anime-theme-1.5.4.zip
 # 打开 https://deepseek.stream/upload → 上传这个 zip
 ```
 
